@@ -1459,7 +1459,6 @@ const ExportPanel = {
 
     exportBtn?.addEventListener('click', () => ExportManager.export(harvest));
     copyBtn?.addEventListener('click', () => ExportManager.copy(harvest));
-  },
   }
 };
 
