@@ -2263,20 +2263,21 @@ const Harvester = {
 
   async autoExpandThinking() {
     // Find expandable elements
-    const expandButtons = document.querySelectorAll([
-      'button[aria-expanded="false"]',
-      'button[id^="radix-"]',
-      'button:has-text("show")',
-      'button:has-text("expand")',
-      'button:has-text("view")'
-    ].join(','));
+    const expandCandidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+    const expandButtons = expandCandidates.filter(button => {
+      const ariaExpanded = button.getAttribute('aria-expanded');
+      if (ariaExpanded === 'false') return true;
+
+      const id = button.id || '';
+      if (id.startsWith('radix-')) return true;
+
+      const text = (button.textContent || '').toLowerCase();
+      return /show|expand|view|details|steps|more|analysis|reasoning|tools?/.test(text);
+    });
 
     for (const button of expandButtons) {
-      const text = (button.textContent || '').toLowerCase();
-      if (/show|expand|view|details|steps|more|analysis|reasoning|tools?/.test(text)) {
-        button.click();
-        await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
-      }
+      button.click();
+      await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
     }
   },
 
@@ -2590,12 +2591,12 @@ const Harvester = {
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
   },
 
-extractBlocks(root) {
+  extractBlocks(root) {
     const blocks = [];
-    
-    function visit(node) {
+
+    const visit = (node) => {
       if (!node || node.nodeType !== 1) return;
-      
+
       const tag = node.tagName.toLowerCase();
       
       // Code blocks
@@ -2746,7 +2747,7 @@ extractBlocks(root) {
         return true;
       }
     }
-    
+
     // Process all child nodes recursively
     Array.from(root.childNodes).forEach(child => {
       if (!visit(child) && child.nodeType === 1) {
