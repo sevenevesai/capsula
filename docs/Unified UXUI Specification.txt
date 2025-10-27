@@ -1,0 +1,213 @@
+
+# ChatGPT Conversation Export Extension
+
+## Unified UX/UI Specification (v2.0)
+
+---
+
+### 1. Overview & Goals
+
+This extension enables users to export ChatGPT conversations from within the ChatGPT web app.
+
+* Current MVP: adds a bottom-right Export button → harvests DOM → outputs JSON, MD, HTML with a granular block selector.
+* Problem: Too developer-oriented, requires many checkboxes, lacks simple one-click flows, no chat-style preview.
+* Goal: Deliver a **simple, intuitive, and powerful** UX for everyday users, while retaining an **Advanced Mode** for developers and researchers.
+* Priority: **Simplicity first** (users in need), with advanced features accessible but not overwhelming.
+
+---
+
+### 2. Core Use Cases
+
+1. **Full Archive** – Save the entire chat transcript for memory/sharing.
+2. **Highlights** – Export just key answers, tables, or bullet lists.
+3. **Code Workflows** – Extract code snippets, group by filename, handle versions/diffs, export as files/zip.
+4. **Quick Snippet** – Save a single answer immediately (right-click).
+5. **Knowledge Capture** – Export only structured outputs (tables, lists, summaries).
+6. **Replay View** – Select ranges visually (from one message to another) without manual block ticking.
+7. **Advanced Dev Mode** – Retain block-level control, JSON output, metadata toggles, and editing.
+
+---
+
+### 3. Entry Points
+
+* **Floating Export Button (FAB):** Fixed bottom-right, dark-themed, matching ChatGPT’s look. Tooltip: “Export conversation.” Only visible when a conversation exists.
+* **Context Menu:** Right-click on an assistant answer → “Export this answer.” One-click export (default MD).
+* **Optional Toolbar Icon:** Opens the same panel when on ChatGPT, or shows a help page otherwise.
+
+---
+
+### 4. Modes
+
+#### 4.1 Simple Mode (default)
+
+For everyday users; clean chat-style preview with minimal controls.
+
+* **Chat-Style Preview:**
+
+  * User messages on right, assistant on left.
+  * Role labels (“You” / “ChatGPT”).
+  * Preserved formatting: code blocks, tables, lists, math, images.
+* **Range Selection:**
+
+  * Toggle “Select Range.”
+  * Click start message → click end message → only that subset shows.
+  * Alternatively, Shift-click to select contiguous range.
+* **Quick Filters:**
+
+  * Assistant only / User only
+  * Code snippets only
+  * Tables only
+  * Bullet lists only
+  * Images only
+* **Presets:**
+
+  * “Save Full Chat (MD)”
+  * “Save Code Snippets”
+  * “Export JSON (raw)”
+* **Export Actions:**
+
+  * Main button: **Export as \[Format]** (dropdown: MD, HTML, JSON; default MD).
+  * Secondary: Copy to clipboard.
+  * Feedback: Toast (“✅ Exported as `chat_2025-08-22.md`”).
+
+#### 4.2 Advanced Mode
+
+For power users needing granular control.
+
+* **Block Tree View:**
+
+  * Conversation grouped by messages → blocks.
+  * Checkboxes for each block (text, code, table, list, image, etc.).
+  * Bulk actions: Select All / None / Assistant Only / Invert.
+* **Live Preview:**
+
+  * Toggle between rendered and raw (MD/HTML).
+  * Inline editing allowed (warn if diverging from source).
+* **Code Grouping View:**
+
+  * Group code blocks by filename.
+  * Show versions with timestamps/message refs.
+  * Diff viewer (inline or modal) with green/red highlights.
+  * Export: latest only, all versions, or zipped files.
+* **Metadata Toggles:**
+
+  * Include timestamps
+  * Include model info
+  * Include conversation title
+* **Export Options:**
+
+  * Formats: MD, HTML, JSON.
+  * Extra: CSV for tables, ZIP for code/files.
+  * Multi-format ZIP (Claude’s idea): MD + HTML + JSON in one package.
+
+---
+
+### 5. Outputs
+
+* **Markdown (.md)** – clean, human-readable, good for notes.
+* **HTML (.html)** – self-contained chat-style view (CSS embedded).
+* **JSON (.json)** – structured schema (title, meta, messages, blocks).
+* **CSV (per table)** – optional via context menu/Advanced.
+* **ZIP** – bundle code files, images, or multi-format exports.
+* **PDF (future)** – via print-to-PDF pipeline; Beta only initially.
+
+Naming convention:
+`ChatGPT_[title or date]_[YYYY-MM-DD_HH-mm].[ext]`
+If ZIP: contains files with sensible names (`module_v1.py`, `conversation.html`, etc.).
+
+---
+
+### 6. Layout & Navigation
+
+* **Overlay Panel:**
+
+  * Opens centered (60% viewport).
+  * Dimmed background, ESC to close.
+  * Option: “Open in New Tab” for large chats.
+* **Tabs:**
+
+  * Top bar toggle: **Simple | Advanced**.
+  * Remembers last used.
+* **Controls:**
+
+  * Filters (pills/toggles).
+  * Format dropdown.
+  * Export button(s).
+* **Accessibility:**
+
+  * Keyboard shortcuts: Alt+E to open.
+  * Tab/Shift+Tab navigation.
+  * ARIA labels on all controls.
+  * WCAG AA contrast, dark/light theme aware.
+
+---
+
+### 7. Future Enhancements
+
+* **User Highlights:** Mark/star messages during chat, then export highlights.
+* **Templates:** User-defined export templates (e.g. blog style, Jupyter notebook style).
+* **Automation:** Auto-save certain chats or run scheduled exports.
+* **Multi-conversation export:** Select multiple convos from sidebar and export together.
+
+---
+
+### 8. Rationale
+
+* **Progressive Disclosure:** Simple vs Advanced ensures casuals aren’t overwhelmed, but devs have control.
+* **Familiar Patterns:** Chat bubble preview (WhatsApp/Slack style) improves comprehension.
+* **Unique Differentiator:** Code grouping + diffs, plus type-based filters, not offered by competitors.
+* **Validated Needs:** One-click full export, assistant-only answers, code snippet extraction match real user requests.
+* **Resilience:** Minimal reliance on fragile DOM selectors, overlay UI contained.
+* **Accessibility & Polish:** Smooth, dark-mode, keyboard-friendly, WCAG-compliant.
+
+---
+
+### 9. Textual Mockups
+
+**Simple Mode (Preview Panel):**
+
+```
+-----------------------------------------------------
+[💬 Simple Export]   [⚙️ Advanced]        ✕ Close
+-----------------------------------------------------
+ Preview (scrollable):
+  [You]  How do I export data?          (bubble right)
+  [ChatGPT] Sure! Here are steps...     (bubble left)
+   - Bullet 1
+   - Bullet 2
+   [Table: Results...]
+
+ Filters: [✓] User [✓] Assistant | [ ] Code [ ] Tables [ ] Lists
+ Range: All   [Select Range]
+ Format: [Markdown ▼]   [ Export Conversation ]
+ Copy | HTML | JSON
+-----------------------------------------------------
+```
+
+**Advanced Mode (Block Tree):**
+
+```
+-----------------------------------------------------
+[💬 Simple]         [⚙️ Advanced Export]    ✕
+-----------------------------------------------------
+ Blocks:
+  [–] User (Q1): "How do I...?"
+       [✓] Text: "How do I export data?"
+  [–] Assistant (A1):
+       [✓] Text: "Sure, here's how..."
+       [✓] List (3 items)
+       [ ] Code: script.py (v1)
+  [–] Assistant (A2):
+       [✓] Code: script.py (v2)
+       [✓] Table: Summary
+
+ File View: script.py [v1][v2]  README.md [v1]
+  [Compare v1 vs v2] → Diff modal
+
+ Preview (Markdown): … (updates live) …
+
+ Options: [✓] timestamps  [ ] meta info
+ Format: [Markdown ▼]
+ [ Export ZIP ]
+-----------------------------------------------------
+```
