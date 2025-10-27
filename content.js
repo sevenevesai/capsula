@@ -199,8 +199,17 @@ class ExportState {
       isSelecting: false
     };
     this.exportFormat = 'markdown';
+    if (typeof this.scrollObserver === 'function') {
+      try {
+        this.scrollObserver();
+      } catch (err) {
+        console.warn('[ChatGPT Export] Failed to detach scroll observer', err);
+      }
+    }
     this.scrollObserver = null;
     this.viewMode = 'main'; // 'main' or 'settings'
+    this.onRangeChange = null;
+    this.onViewModeChange = null;
   }
 
   setFilter(filterName, value) {
@@ -425,9 +434,18 @@ const Timeline = {
   setupScrollHighlighting(container) {
     const previewPanel = container.closest('.panel').querySelector('.chat-preview');
     const segments = container.querySelectorAll('.timeline-segment');
-    
+
     if (!previewPanel || !segments.length) return;
-    
+
+    if (globalState.scrollObserver) {
+      try {
+        globalState.scrollObserver();
+      } catch (err) {
+        console.warn('[ChatGPT Export] Failed to detach previous scroll listener', err);
+      }
+      globalState.scrollObserver = null;
+    }
+
     const updateHighlight = () => {
       const scrollTop = previewPanel.scrollTop;
       const clientHeight = previewPanel.clientHeight;
@@ -891,6 +909,8 @@ const ExportPanel = {
     const chatFont = globalState.settings.getEffectiveFont();
     const isSettings = globalState.viewMode === 'settings';
 
+    ChatRenderer.destroy();
+
     shadow.innerHTML = `
       <style>
         ${this.getStyles(colors, effectiveColors, chatFont)}
@@ -904,8 +924,11 @@ const ExportPanel = {
     `;
 
     if (!isSettings) {
-      Timeline.render(shadow.querySelector('.timeline-panel'), harvest.messages);
-      this.renderMessages(shadow.querySelector('.chat-preview'), harvest);
+      const timelineContainer = shadow.querySelector('.timeline-panel');
+      const previewContainer = shadow.querySelector('.chat-preview');
+
+      Timeline.render(timelineContainer, harvest.messages);
+      ChatRenderer.mount(previewContainer, harvest);
     }
   },
 
@@ -1388,7 +1411,6 @@ const ExportPanel = {
     const exportBtn = shadow.querySelector('[data-action="export"]');
     const copyBtn = shadow.querySelector('[data-action="copy"]');
     const clearRangeBtn = shadow.querySelector('[data-action="clear-range"]');
-    const previewContainer = shadow.querySelector('.chat-preview');
 
     if (settingsBtn) {
       settingsBtn.addEventListener('click', () => {
@@ -1397,26 +1419,32 @@ const ExportPanel = {
     }
 
     globalState.onRangeChange = () => {
-      this.renderMessages(previewContainer, harvest);
-      if (globalState.rangeSelection.start !== null && globalState.rangeSelection.end !== null) {
-        clearRangeBtn.style.display = 'block';
-      } else {
-        clearRangeBtn.style.display = 'none';
+      ChatRenderer.refresh();
+      const hasRange = globalState.rangeSelection.start !== null &&
+                       globalState.rangeSelection.end !== null;
+      if (clearRangeBtn) {
+        clearRangeBtn.style.display = hasRange ? 'block' : 'none';
       }
+      Timeline.updateSelection(shadow.querySelector('.timeline-panel'));
     };
 
     backdrop?.addEventListener('click', () => PanelManager.close());
     closeBtn?.addEventListener('click', () => PanelManager.close());
 
     filterBtns.forEach(btn => {
+      const filterName = btn.dataset.filter;
+      if (filterName && globalState.filters[filterName]) {
+        btn.classList.add('active');
+      }
+
       btn.addEventListener('click', () => {
-        const filter = btn.dataset.filter;
+        if (!filterName) return;
         const isActive = btn.classList.contains('active');
-        
-        globalState.setFilter(filter, !isActive);
+
+        globalState.setFilter(filterName, !isActive);
         btn.classList.toggle('active');
-        
-        this.renderMessages(previewContainer, harvest);
+
+        ChatRenderer.refresh();
       });
     });
 
@@ -1427,64 +1455,10 @@ const ExportPanel = {
     clearRangeBtn?.addEventListener('click', () => {
       globalState.clearRange();
       Timeline.updateSelection(shadow.querySelector('.timeline-panel'));
-      this.renderMessages(previewContainer, harvest);
-      clearRangeBtn.style.display = 'none';
     });
 
     exportBtn?.addEventListener('click', () => ExportManager.export(harvest));
     copyBtn?.addEventListener('click', () => ExportManager.copy(harvest));
-
-    if (previewContainer) {
-      Timeline.render(shadow.querySelector('.timeline-panel'), harvest.messages);
-      this.renderMessages(previewContainer, harvest);
-    }
-  },
-
-  renderMessages(container, harvest) {
-    if (!container) return;
-    
-    container.innerHTML = '';
-    const filteredMessages = MessageFilter.apply(harvest.messages);
-    
-    if (filteredMessages.length === 0) {
-      container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No messages match the current filters</div>';
-      return;
-    }
-    
-    filteredMessages.forEach(msg => {
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${msg.role}`;
-      messageDiv.dataset.messageIndex = msg.index;
-      
-      // Handle thinking states
-      let thinkingHtml = '';
-      if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-        const labels = msg.thinking.labels.map(label => 
-          `<div class="thinking-label">${Utils.escapeHtml(label.text)}</div>`
-        ).join('');
-        
-        const expandable = msg.thinking.expandable ? 
-          '<div class="thinking-expandable">[Expandable content detected]</div>' : '';
-        
-        thinkingHtml = `<div class="thinking-labels">${labels}${expandable}</div>`;
-      }
-      
-      const bubbleContent = MessageFormatter.format(msg);
-      const renderBubble = bubbleContent && bubbleContent.trim().length > 0;
-      
-      messageDiv.innerHTML = `
-        <div class="thinking-container">
-          ${thinkingHtml}
-          ${renderBubble ? `
-          <div class="bubble">
-            <div class="message-role">${msg.role === 'user' ? 'You' : 'ChatGPT'}</div>
-            ${bubbleContent}
-          </div>` : ''}
-        </div>
-      `;
-      
-      container.appendChild(messageDiv);
-    });
   }
 };
 
@@ -1659,23 +1633,23 @@ const SettingsStyles = {
 const MessageFilter = {
   apply(messages) {
     let filtered = [...messages];
-    
-    if (globalState.rangeSelection.start !== null && 
+
+    if (globalState.rangeSelection.start !== null &&
         globalState.rangeSelection.end !== null) {
-      filtered = filtered.filter(msg => 
-        msg.index >= globalState.rangeSelection.start && 
+      filtered = filtered.filter(msg =>
+        msg.index >= globalState.rangeSelection.start &&
         msg.index <= globalState.rangeSelection.end
       );
     }
-    
+
     if (globalState.filters.assistantOnly) {
       filtered = filtered.filter(msg => msg.role === 'assistant');
     }
-    
-    const hasContentFilters = globalState.filters.code || 
-                             globalState.filters.tables || 
+
+    const hasContentFilters = globalState.filters.code ||
+                             globalState.filters.tables ||
                              globalState.filters.lists;
-    
+
     if (hasContentFilters) {
       filtered = filtered.map(msg => {
         const filteredBlocks = msg.blocks.filter(block => {
@@ -1684,17 +1658,164 @@ const MessageFilter = {
           if (globalState.filters.lists && block.kind === 'list') return true;
           return false;
         });
-        
+
         if (filteredBlocks.length > 0) {
           return { ...msg, blocks: filteredBlocks };
         }
         return null;
       }).filter(msg => msg !== null);
     }
-    
+
     return filtered;
   }
 };
+
+/* ===========================
+   Chat Preview Renderer
+   =========================== */
+const ChatRenderer = (() => {
+  let container = null;
+  let harvestRef = null;
+  let scheduled = false;
+
+  const raf = window.requestAnimationFrame || function(cb) { return setTimeout(cb, 16); };
+
+  function scheduleRender() {
+    if (scheduled) return;
+    scheduled = true;
+    raf(() => {
+      scheduled = false;
+      renderNow();
+    });
+  }
+
+  function renderNow() {
+    if (!container || !container.isConnected) return;
+
+    const harvest = harvestRef || globalState.harvest;
+    if (!harvest || !Array.isArray(harvest.messages)) {
+      container.replaceChildren();
+      return;
+    }
+
+    const filteredMessages = MessageFilter.apply(harvest.messages);
+
+    if (!filteredMessages.length) {
+      const empty = document.createElement('div');
+      empty.style.textAlign = 'center';
+      empty.style.color = 'var(--text-secondary)';
+      empty.style.padding = '40px';
+      empty.textContent = 'No messages match the current filters';
+      container.replaceChildren(empty);
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    filteredMessages.forEach(msg => {
+      const bubbleContent = MessageFormatter.format(msg);
+      const hasBubbleContent = bubbleContent && bubbleContent.trim().length > 0;
+      const hasThinking = msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0;
+
+      if (!hasBubbleContent && !hasThinking) {
+        return;
+      }
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${msg.role}`;
+      messageDiv.dataset.messageIndex = msg.index;
+
+      const thinkingContainer = document.createElement('div');
+      thinkingContainer.className = 'thinking-container';
+
+      if (hasThinking) {
+        const labelsWrapper = document.createElement('div');
+        labelsWrapper.className = 'thinking-labels';
+
+        msg.thinking.labels.forEach(label => {
+          const labelEl = document.createElement('div');
+          labelEl.className = 'thinking-label';
+          labelEl.textContent = label.text || '';
+          labelsWrapper.appendChild(labelEl);
+        });
+
+        if (msg.thinking.expandable) {
+          const expandable = document.createElement('div');
+          expandable.className = 'thinking-expandable';
+          expandable.textContent = '[Expandable content detected]';
+          labelsWrapper.appendChild(expandable);
+        }
+
+        thinkingContainer.appendChild(labelsWrapper);
+      }
+
+      if (hasBubbleContent) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+
+        const roleLabel = document.createElement('div');
+        roleLabel.className = 'message-role';
+        roleLabel.textContent = msg.role === 'user' ? 'You' : 'ChatGPT';
+        bubble.appendChild(roleLabel);
+
+        bubble.insertAdjacentHTML('beforeend', bubbleContent);
+        thinkingContainer.appendChild(bubble);
+      }
+
+      messageDiv.appendChild(thinkingContainer);
+      fragment.appendChild(messageDiv);
+    });
+
+    if (!fragment.childNodes.length) {
+      const empty = document.createElement('div');
+      empty.style.textAlign = 'center';
+      empty.style.color = 'var(--text-secondary)';
+      empty.style.padding = '40px';
+      empty.textContent = 'No messages match the current filters';
+      container.replaceChildren(empty);
+      return;
+    }
+
+    container.replaceChildren(fragment);
+  }
+
+  return {
+    mount(target, harvest) {
+      if (!target) return;
+
+      if (container && container !== target) {
+        this.destroy();
+      }
+
+      container = target;
+      harvestRef = harvest || globalState.harvest || null;
+      scheduleRender();
+    },
+
+    refresh() {
+      if (!container) return;
+      harvestRef = harvestRef || globalState.harvest || null;
+      scheduleRender();
+    },
+
+    updateHarvest(harvest) {
+      harvestRef = harvest;
+      scheduleRender();
+    },
+
+    destroy() {
+      scheduled = false;
+      harvestRef = null;
+
+      if (container) {
+        if (container.isConnected) {
+          container.replaceChildren();
+        }
+        container = null;
+      }
+    }
+  };
+})();
 
 /* ===========================
    Message Formatting (Enhanced)
@@ -2730,23 +2851,15 @@ const PanelManager = {
 
   close() {
     if (panelHost) {
-      if (globalState.scrollObserver) {
-        globalState.scrollObserver();
-        globalState.scrollObserver = null;
-      }
-      
+      ChatRenderer.destroy();
+
       panelHost.style.animation = 'fadeOut 0.2s ease';
       setTimeout(() => {
         if (panelHost?.parentNode) {
           panelHost.parentNode.removeChild(panelHost);
         }
         panelHost = null;
-        if (globalState.onRangeChange) {
-          globalState.onRangeChange = null;
-        }
-        if (globalState.onViewModeChange) {
-          globalState.onViewModeChange = null;
-        }
+        globalState.reset();
       }, 200);
     }
   }
