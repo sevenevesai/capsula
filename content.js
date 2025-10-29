@@ -1076,6 +1076,7 @@ const ExportPanel = {
           <option value="markdown">Markdown (.md)</option>
           <option value="html">HTML (.html)</option>
           <option value="json">JSON (.json)</option>
+          <option value="pdf">PDF (.pdf)</option>
         </select>
         
         <button class="secondary-btn" data-action="copy">
@@ -2046,7 +2047,7 @@ const ExportManager = {
 
   generateContent(harvest, format) {
     const filteredMessages = MessageFilter.apply(harvest.messages);
-    
+
     switch (format) {
       case 'markdown':
         return this.toMarkdown(filteredMessages, harvest.meta);
@@ -2054,6 +2055,8 @@ const ExportManager = {
         return this.toHTML(filteredMessages, harvest.meta);
       case 'json':
         return this.toJSON(filteredMessages, harvest.meta);
+      case 'pdf':
+        return this.toPDF(filteredMessages, harvest.meta);
       default:
         return this.toMarkdown(filteredMessages, harvest.meta);
     }
@@ -2318,6 +2321,266 @@ const ExportManager = {
     }, null, 2);
   },
 
+  toPDF(messages, meta) {
+    // Simple PDF generator without external dependencies
+    // Creates a basic PDF document with text content
+
+    const pdfLines = [];
+    const pageWidth = 595; // A4 width in points
+    const pageHeight = 842; // A4 height in points
+    const margin = 50;
+    const lineHeight = 14;
+    const maxWidth = pageWidth - (2 * margin);
+
+    // Helper to escape special PDF characters
+    const escapePDF = (str) => {
+      return str
+        .replace(/\\/g, '\\\\')
+        .replace(/\(/g, '\\(')
+        .replace(/\)/g, '\\)')
+        .replace(/\r/g, '')
+        .replace(/\n/g, '\\n');
+    };
+
+    // Helper to wrap text to fit page width (approximate)
+    const wrapText = (text, maxChars = 90) => {
+      const lines = [];
+      const paragraphs = text.split('\n');
+
+      paragraphs.forEach(para => {
+        if (para.length <= maxChars) {
+          lines.push(para);
+        } else {
+          const words = para.split(' ');
+          let currentLine = '';
+
+          words.forEach(word => {
+            if ((currentLine + word).length <= maxChars) {
+              currentLine += (currentLine ? ' ' : '') + word;
+            } else {
+              if (currentLine) lines.push(currentLine);
+              currentLine = word;
+            }
+          });
+
+          if (currentLine) lines.push(currentLine);
+        }
+      });
+
+      return lines;
+    };
+
+    // Build text content
+    let textContent = [];
+
+    // Add header
+    textContent.push({ text: meta.title || 'ChatGPT Conversation', fontSize: 18, bold: true });
+    textContent.push({ text: '', fontSize: 12 }); // Empty line
+    textContent.push({ text: `Exported: ${new Date(meta.exported_at).toLocaleString()}`, fontSize: 10 });
+    if (meta.model) {
+      textContent.push({ text: `Model: ${meta.model}`, fontSize: 10 });
+    }
+    textContent.push({ text: `Version: ChatGPT Export v${CFG.version}`, fontSize: 10 });
+    textContent.push({ text: '', fontSize: 12 }); // Empty line
+    textContent.push({ text: '_'.repeat(80), fontSize: 10 });
+    textContent.push({ text: '', fontSize: 12 }); // Empty line
+
+    // Add messages
+    messages.forEach((msg, idx) => {
+      const roleLabel = msg.role === 'user' ? 'You' : 'ChatGPT';
+
+      // Add thinking labels
+      if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
+        msg.thinking.labels.forEach(label => {
+          textContent.push({ text: `[${label.text}]`, fontSize: 10, italic: true });
+        });
+      }
+
+      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
+      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
+      const hasContent = hasBlocks || hasPlain;
+
+      if (hasContent && !msg.isThinking) {
+        textContent.push({ text: '', fontSize: 12 }); // Empty line
+        textContent.push({ text: `${roleLabel}:`, fontSize: 14, bold: true });
+        textContent.push({ text: '', fontSize: 12 }); // Empty line
+
+        if (hasBlocks) {
+          // Convert blocks to text
+          msg.blocks.forEach(block => {
+            switch (block.kind) {
+              case 'heading':
+                textContent.push({ text: block.text || '', fontSize: 13, bold: true });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'para':
+                const paraText = block.text || block.md || '';
+                textContent.push({ text: paraText, fontSize: 11 });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'code':
+                textContent.push({ text: `Code (${block.language || 'text'}):`, fontSize: 10, italic: true });
+                textContent.push({ text: block.text || '', fontSize: 9, monospace: true });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'list':
+                if (block.items && Array.isArray(block.items)) {
+                  block.items.forEach((item, i) => {
+                    const prefix = block.ordered ? `${i + 1}. ` : '• ';
+                    textContent.push({ text: prefix + (item.text || item.md || ''), fontSize: 11 });
+                  });
+                  textContent.push({ text: '', fontSize: 12 });
+                }
+                break;
+              case 'quote':
+                textContent.push({ text: '> ' + (block.md || block.text || ''), fontSize: 11, italic: true });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'math':
+                textContent.push({ text: `[Math: ${block.latex || ''}]`, fontSize: 10, italic: true });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'image':
+                textContent.push({ text: `[Image: ${block.alt || 'image'}]`, fontSize: 10, italic: true });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'link':
+                textContent.push({ text: `${block.text || 'Link'}: ${block.href || ''}`, fontSize: 10 });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+              case 'divider':
+                textContent.push({ text: '-'.repeat(80), fontSize: 10 });
+                textContent.push({ text: '', fontSize: 12 });
+                break;
+            }
+          });
+        } else if (hasPlain) {
+          textContent.push({ text: msg.plain.text, fontSize: 11 });
+          textContent.push({ text: '', fontSize: 12 });
+        }
+      }
+    });
+
+    // Build PDF structure
+    const objects = [];
+    let objNum = 1;
+
+    // Object 1: Catalog
+    objects.push({
+      num: objNum++,
+      content: '<</Type /Catalog /Pages 2 0 R>>'
+    });
+
+    // Object 2: Pages (will update with page references)
+    const pagesObjNum = objNum++;
+
+    // Generate pages with text
+    const pageObjects = [];
+    const contentObjects = [];
+    const fontObjNum = objNum++;
+    let y = pageHeight - margin;
+    let currentPageContent = [];
+
+    textContent.forEach(item => {
+      const lines = wrapText(item.text);
+      const itemLineHeight = item.fontSize * 1.2;
+
+      lines.forEach(line => {
+        if (y < margin + itemLineHeight) {
+          // Start new page
+          if (currentPageContent.length > 0) {
+            const contentObjNum = objNum++;
+            const pageObjNum = objNum++;
+
+            contentObjects.push({
+              num: contentObjNum,
+              content: currentPageContent.join('\n')
+            });
+
+            pageObjects.push({
+              num: pageObjNum,
+              content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font <</F1 ${fontObjNum} 0 R>>>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
+            });
+          }
+
+          currentPageContent = ['BT', `/F1 ${item.fontSize} Tf`, `${margin} ${pageHeight - margin} Td`, `${itemLineHeight} TL`];
+          y = pageHeight - margin;
+        }
+
+        const escapedLine = escapePDF(line);
+        currentPageContent.push(`(${escapedLine}) Tj`);
+        currentPageContent.push('T*');
+        y -= itemLineHeight;
+      });
+    });
+
+    // Add last page
+    if (currentPageContent.length > 0) {
+      currentPageContent.push('ET');
+      const contentObjNum = objNum++;
+      const pageObjNum = objNum++;
+
+      const streamContent = currentPageContent.join('\n');
+      contentObjects.push({
+        num: contentObjNum,
+        content: `<</Length ${streamContent.length}>>\nstream\n${streamContent}\nendstream`
+      });
+
+      pageObjects.push({
+        num: pageObjNum,
+        content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font <</F1 ${fontObjNum} 0 R>>>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
+      });
+    }
+
+    // Add font object
+    objects.push({
+      num: fontObjNum,
+      content: '<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>'
+    });
+
+    // Add content objects
+    contentObjects.forEach(obj => objects.push(obj));
+
+    // Add page objects
+    pageObjects.forEach(obj => objects.push(obj));
+
+    // Update pages object with page references
+    const pageRefs = pageObjects.map(p => `${p.num} 0 R`).join(' ');
+    objects.splice(1, 0, {
+      num: pagesObjNum,
+      content: `<</Type /Pages /Kids [${pageRefs}] /Count ${pageObjects.length}>>`
+    });
+
+    // Build PDF file
+    const pdfParts = ['%PDF-1.4'];
+    const xrefOffsets = [0];
+
+    objects.forEach(obj => {
+      xrefOffsets.push(pdfParts.join('\n').length + 1);
+      pdfParts.push(`${obj.num} 0 obj`);
+      pdfParts.push(obj.content);
+      pdfParts.push('endobj');
+    });
+
+    const xrefOffset = pdfParts.join('\n').length + 1;
+    pdfParts.push('xref');
+    pdfParts.push(`0 ${objects.length + 1}`);
+    pdfParts.push('0000000000 65535 f ');
+
+    xrefOffsets.slice(1).forEach(offset => {
+      const paddedOffset = String(offset).padStart(10, '0');
+      pdfParts.push(`${paddedOffset} 00000 n `);
+    });
+
+    pdfParts.push('trailer');
+    pdfParts.push(`<</Size ${objects.length + 1} /Root 1 0 R>>`);
+    pdfParts.push('startxref');
+    pdfParts.push(String(xrefOffset));
+    pdfParts.push('%%EOF');
+
+    return pdfParts.join('\n');
+  },
+
   generateFilename(harvest, format) {
     const title = Utils.safeTitle(harvest.meta.title || 'ChatGPT_Conversation');
     const date = new Date().toISOString().replace(/[:.]/g, '-').replace(/T/, '_').substring(0, 19);
@@ -2329,7 +2592,8 @@ const ExportManager = {
     const types = {
       markdown: 'text/markdown;charset=utf-8',
       html: 'text/html;charset=utf-8',
-      json: 'application/json;charset=utf-8'
+      json: 'application/json;charset=utf-8',
+      pdf: 'application/pdf'
     };
     return types[format] || 'text/plain;charset=utf-8';
   }
@@ -3107,6 +3371,7 @@ const ContextMenu = {
       <div class="menu-item" data-action="export-markdown">Export as Markdown</div>
       <div class="menu-item" data-action="export-html">Export as HTML</div>
       <div class="menu-item" data-action="export-json">Export as JSON</div>
+      <div class="menu-item" data-action="export-pdf">Export as PDF</div>
     `;
 
     document.body.appendChild(menu);
@@ -3203,8 +3468,22 @@ const ContextMenu = {
 </html>`;
     } else if (format === 'json') {
       return JSON.stringify({ blocks, timestamp: new Date().toISOString() }, null, 2);
+    } else if (format === 'pdf') {
+      // Create a minimal message structure for PDF export
+      const singleMessage = {
+        role: 'assistant',
+        blocks: blocks,
+        index: 0
+      };
+      const meta = {
+        title: 'ChatGPT Answer',
+        exported_at: new Date().toISOString(),
+        model: '',
+        url: window.location.href
+      };
+      return ExportManager.toPDF([singleMessage], meta);
     }
-    
+
     return ExportManager.blocksToMarkdown(blocks);
   }
 };
