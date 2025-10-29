@@ -2173,94 +2173,342 @@ const ExportManager = {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: blob:; style-src 'unsafe-inline'; font-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
   <title>${Utils.escapeHtml(meta.title)}</title>
   <style>
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
     body {
-      font-family: ${chatFont};
-      line-height: 1.6;
+      font-family: ${chatFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+      line-height: 1.7;
       max-width: 800px;
       margin: 0 auto;
-      padding: 20px;
-      background: #f9fafb;
+      padding: 32px 24px;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+
+    .meta {
+      background: #ffffff;
+      padding: 20px 24px;
+      border-radius: 12px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border: 1px solid #e5e7eb;
+    }
+
+    .meta h1 {
+      margin: 0 0 12px 0;
+      font-size: 24px;
+      font-weight: 600;
       color: #111827;
     }
-    .meta {
-      background: #f3f4f6;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 13px;
+
+    .meta p {
+      margin: 6px 0;
+      color: #4b5563;
     }
+
     .message {
-      margin-bottom: 20px;
+      margin-bottom: 28px;
       display: flex;
+      page-break-inside: avoid;
     }
-    .message.user { justify-content: flex-end; }
-    .message.assistant { justify-content: flex-start; }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .message.assistant {
+      justify-content: flex-start;
+    }
+
     .thinking-label {
-      font-size: 12px;
+      font-size: 13px;
       color: #6b7280;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
       font-style: italic;
+      padding: 0 4px;
     }
+
     .bubble {
       max-width: 70%;
-      padding: 12px 16px;
+      padding: 16px 20px;
       border-radius: 16px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
+
     .message.user .bubble {
       background: ${effectiveColors.user};
       color: white;
       border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
+
     .message.assistant .bubble {
-      background: ${effectiveColors.assistant};
-      color: #111827;
+      background: #ffffff;
+      color: #1a1a1a;
       border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border: 1px solid #e5e7eb;
     }
+
     .role {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      margin-bottom: 4px;
-      opacity: 0.7;
+      margin-bottom: 8px;
+      opacity: 0.75;
+      letter-spacing: 0.3px;
     }
+
     .citation {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 8px;
-      background: rgba(0,0,0,0.05);
+      padding: 12px;
+      background: rgba(0,0,0,0.03);
       border-radius: 8px;
-      margin: 8px 0;
+      margin: 12px 0;
+      border: 1px solid rgba(0,0,0,0.06);
     }
+
     .citation img {
       width: 60px;
       height: 60px;
       object-fit: cover;
       border-radius: 6px;
     }
+
     pre {
-      background: #1f2937;
-      color: #f3f4f6;
-      padding: 12px;
-      border-radius: 8px;
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 20px 24px;
+      border-radius: 10px;
       overflow-x: auto;
+      margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border: 1px solid #334155;
+      page-break-inside: avoid;
     }
+
+    pre code {
+      display: block;
+      line-height: 1.6;
+      white-space: pre;
+      word-wrap: normal;
+    }
+
     code {
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 13px;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+      font-size: 13.5px;
+      letter-spacing: 0.02em;
     }
+
+    p code, li code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #dc2626;
+      border: 1px solid #e5e7eb;
+    }
+
     img {
       max-width: 100%;
       height: auto;
       border-radius: 8px;
-      margin: 8px 0;
+      margin: 12px 0;
+      page-break-inside: avoid;
     }
+
     a {
-      color: #3b82f6;
+      color: #2563eb;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
     }
+
+    a:hover {
+      border-bottom-color: #2563eb;
+    }
+
+    p {
+      margin: 12px 0;
+    }
+
+    ul, ol {
+      margin: 12px 0;
+      padding-left: 28px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    blockquote {
+      border-left: 3px solid #cbd5e1;
+      padding-left: 16px;
+      margin: 16px 0;
+      color: #64748b;
+      font-style: italic;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 16px 0;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+
     @media (prefers-color-scheme: dark) {
-      body { background: #111827; color: #f9fafb; }
-      .meta { background: #374151; }
-      .message.assistant .bubble { background: #374151; color: #f9fafb; }
+      body {
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+
+      .meta {
+        background: #1e293b;
+        border-color: #334155;
+      }
+
+      .meta h1 {
+        color: #f1f5f9;
+      }
+
+      .meta p {
+        color: #94a3b8;
+      }
+
+      .message.assistant .bubble {
+        background: #1e293b;
+        color: #e2e8f0;
+        border-color: #334155;
+      }
+
+      p code, li code {
+        background: #334155;
+        color: #fca5a5;
+        border-color: #475569;
+      }
+
+      blockquote {
+        border-left-color: #475569;
+        color: #94a3b8;
+      }
+
+      th {
+        background: #1e293b;
+      }
+
+      th, td {
+        border-color: #334155;
+      }
+    }
+
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        background: white;
+        color: black;
+        padding: 0;
+        max-width: 100%;
+        font-family: ${chatFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+      }
+
+      .meta {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        box-shadow: none;
+        page-break-after: avoid;
+      }
+
+      .message {
+        page-break-inside: avoid;
+        margin-bottom: 24px;
+      }
+
+      .bubble {
+        box-shadow: none;
+        max-width: 100%;
+      }
+
+      .message.user .bubble {
+        background: #e3f2fd;
+        color: #0d47a1;
+      }
+
+      .message.assistant .bubble {
+        background: #f5f5f5;
+        color: black;
+        border: 1px solid #ddd;
+      }
+
+      pre {
+        background: #f8f9fa;
+        color: #212529;
+        border: 1px solid #dee2e6;
+        box-shadow: none;
+        page-break-inside: avoid;
+        padding: 18px 22px;
+        overflow: visible;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      pre code {
+        color: #212529;
+      }
+
+      p code, li code {
+        background: #f8f9fa;
+        color: #d63384;
+        border: 1px solid #dee2e6;
+      }
+
+      a {
+        color: #0066cc;
+        text-decoration: underline;
+      }
+
+      img {
+        page-break-inside: avoid;
+        max-height: 600px;
+      }
+
+      blockquote {
+        page-break-inside: avoid;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+      }
+
+      table {
+        page-break-inside: auto;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
     }
   </style>
 </head>
