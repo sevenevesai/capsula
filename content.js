@@ -2325,29 +2325,34 @@ const ExportManager = {
     // Simple PDF generator without external dependencies
     // Creates a basic PDF document with text content
 
-    const pdfLines = [];
     const pageWidth = 595; // A4 width in points
     const pageHeight = 842; // A4 height in points
     const margin = 50;
-    const lineHeight = 14;
-    const maxWidth = pageWidth - (2 * margin);
+    const maxLineWidth = pageWidth - (2 * margin);
 
     // Helper to escape special PDF characters
     const escapePDF = (str) => {
+      if (!str) return '';
       return str
         .replace(/\\/g, '\\\\')
         .replace(/\(/g, '\\(')
         .replace(/\)/g, '\\)')
         .replace(/\r/g, '')
-        .replace(/\n/g, '\\n');
+        .replace(/\n/g, ' '); // Replace newlines with spaces in PDF strings
     };
 
-    // Helper to wrap text to fit page width (approximate)
-    const wrapText = (text, maxChars = 90) => {
+    // Helper to wrap text to fit page width (character-based approximation)
+    const wrapText = (text, fontSize, maxChars = 80) => {
+      if (!text) return [''];
       const lines = [];
       const paragraphs = text.split('\n');
 
       paragraphs.forEach(para => {
+        if (!para.trim()) {
+          lines.push('');
+          return;
+        }
+
         if (para.length <= maxChars) {
           lines.push(para);
         } else {
@@ -2355,11 +2360,17 @@ const ExportManager = {
           let currentLine = '';
 
           words.forEach(word => {
-            if ((currentLine + word).length <= maxChars) {
-              currentLine += (currentLine ? ' ' : '') + word;
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            if (testLine.length <= maxChars) {
+              currentLine = testLine;
             } else {
               if (currentLine) lines.push(currentLine);
               currentLine = word;
+              // If single word is too long, force break it
+              while (currentLine.length > maxChars) {
+                lines.push(currentLine.substring(0, maxChars));
+                currentLine = currentLine.substring(maxChars);
+              }
             }
           });
 
@@ -2367,32 +2378,32 @@ const ExportManager = {
         }
       });
 
-      return lines;
+      return lines.length > 0 ? lines : [''];
     };
 
-    // Build text content
-    let textContent = [];
+    // Build text content array with lines
+    const allLines = [];
 
     // Add header
-    textContent.push({ text: meta.title || 'ChatGPT Conversation', fontSize: 18, bold: true });
-    textContent.push({ text: '', fontSize: 12 }); // Empty line
-    textContent.push({ text: `Exported: ${new Date(meta.exported_at).toLocaleString()}`, fontSize: 10 });
+    allLines.push({ text: meta.title || 'ChatGPT Conversation', fontSize: 16 });
+    allLines.push({ text: '', fontSize: 12 });
+    allLines.push({ text: `Exported: ${new Date(meta.exported_at).toLocaleString()}`, fontSize: 9 });
     if (meta.model) {
-      textContent.push({ text: `Model: ${meta.model}`, fontSize: 10 });
+      allLines.push({ text: `Model: ${meta.model}`, fontSize: 9 });
     }
-    textContent.push({ text: `Version: ChatGPT Export v${CFG.version}`, fontSize: 10 });
-    textContent.push({ text: '', fontSize: 12 }); // Empty line
-    textContent.push({ text: '_'.repeat(80), fontSize: 10 });
-    textContent.push({ text: '', fontSize: 12 }); // Empty line
+    allLines.push({ text: `Version: ChatGPT Export v${CFG.version}`, fontSize: 9 });
+    allLines.push({ text: '', fontSize: 12 });
+    allLines.push({ text: '-'.repeat(70), fontSize: 9 });
+    allLines.push({ text: '', fontSize: 12 });
 
     // Add messages
-    messages.forEach((msg, idx) => {
+    messages.forEach((msg) => {
       const roleLabel = msg.role === 'user' ? 'You' : 'ChatGPT';
 
       // Add thinking labels
       if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
         msg.thinking.labels.forEach(label => {
-          textContent.push({ text: `[${label.text}]`, fontSize: 10, italic: true });
+          allLines.push({ text: `[${label.text}]`, fontSize: 9 });
         });
       }
 
@@ -2401,65 +2412,135 @@ const ExportManager = {
       const hasContent = hasBlocks || hasPlain;
 
       if (hasContent && !msg.isThinking) {
-        textContent.push({ text: '', fontSize: 12 }); // Empty line
-        textContent.push({ text: `${roleLabel}:`, fontSize: 14, bold: true });
-        textContent.push({ text: '', fontSize: 12 }); // Empty line
+        allLines.push({ text: '', fontSize: 12 });
+        allLines.push({ text: `${roleLabel}:`, fontSize: 12 });
+        allLines.push({ text: '', fontSize: 10 });
 
         if (hasBlocks) {
           // Convert blocks to text
           msg.blocks.forEach(block => {
             switch (block.kind) {
               case 'heading':
-                textContent.push({ text: block.text || '', fontSize: 13, bold: true });
-                textContent.push({ text: '', fontSize: 12 });
+                const headingText = block.text || '';
+                wrapText(headingText, 11, 70).forEach(line => {
+                  allLines.push({ text: line, fontSize: 11 });
+                });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'para':
                 const paraText = block.text || block.md || '';
-                textContent.push({ text: paraText, fontSize: 11 });
-                textContent.push({ text: '', fontSize: 12 });
+                wrapText(paraText, 10, 75).forEach(line => {
+                  allLines.push({ text: line, fontSize: 10 });
+                });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'code':
-                textContent.push({ text: `Code (${block.language || 'text'}):`, fontSize: 10, italic: true });
-                textContent.push({ text: block.text || '', fontSize: 9, monospace: true });
-                textContent.push({ text: '', fontSize: 12 });
+                allLines.push({ text: `Code (${block.language || 'text'}):`, fontSize: 9 });
+                const codeText = block.text || '';
+                wrapText(codeText, 8, 80).forEach(line => {
+                  allLines.push({ text: '  ' + line, fontSize: 8 });
+                });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'list':
                 if (block.items && Array.isArray(block.items)) {
                   block.items.forEach((item, i) => {
                     const prefix = block.ordered ? `${i + 1}. ` : '• ';
-                    textContent.push({ text: prefix + (item.text || item.md || ''), fontSize: 11 });
+                    const itemText = item.text || item.md || '';
+                    const wrappedLines = wrapText(itemText, 10, 72);
+                    wrappedLines.forEach((line, idx) => {
+                      allLines.push({
+                        text: idx === 0 ? prefix + line : '  ' + line,
+                        fontSize: 10
+                      });
+                    });
                   });
-                  textContent.push({ text: '', fontSize: 12 });
+                  allLines.push({ text: '', fontSize: 10 });
                 }
                 break;
               case 'quote':
-                textContent.push({ text: '> ' + (block.md || block.text || ''), fontSize: 11, italic: true });
-                textContent.push({ text: '', fontSize: 12 });
+                const quoteText = block.md || block.text || '';
+                wrapText(quoteText, 10, 70).forEach(line => {
+                  allLines.push({ text: '> ' + line, fontSize: 10 });
+                });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'math':
-                textContent.push({ text: `[Math: ${block.latex || ''}]`, fontSize: 10, italic: true });
-                textContent.push({ text: '', fontSize: 12 });
+                allLines.push({ text: `[Math: ${block.latex || ''}]`, fontSize: 9 });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'image':
-                textContent.push({ text: `[Image: ${block.alt || 'image'}]`, fontSize: 10, italic: true });
-                textContent.push({ text: '', fontSize: 12 });
+                allLines.push({ text: `[Image: ${block.alt || 'image'}]`, fontSize: 9 });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'link':
-                textContent.push({ text: `${block.text || 'Link'}: ${block.href || ''}`, fontSize: 10 });
-                textContent.push({ text: '', fontSize: 12 });
+                const linkText = `${block.text || 'Link'}: ${block.href || ''}`;
+                wrapText(linkText, 9, 70).forEach(line => {
+                  allLines.push({ text: line, fontSize: 9 });
+                });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
               case 'divider':
-                textContent.push({ text: '-'.repeat(80), fontSize: 10 });
-                textContent.push({ text: '', fontSize: 12 });
+                allLines.push({ text: '-'.repeat(70), fontSize: 9 });
+                allLines.push({ text: '', fontSize: 10 });
+                break;
+              case 'table':
+                allLines.push({ text: '[Table content]', fontSize: 9 });
+                allLines.push({ text: '', fontSize: 10 });
                 break;
             }
           });
         } else if (hasPlain) {
-          textContent.push({ text: msg.plain.text, fontSize: 11 });
-          textContent.push({ text: '', fontSize: 12 });
+          wrapText(msg.plain.text, 10, 75).forEach(line => {
+            allLines.push({ text: line, fontSize: 10 });
+          });
+          allLines.push({ text: '', fontSize: 10 });
         }
       }
     });
+
+    // Generate pages
+    const pages = [];
+    let currentPage = [];
+    let currentY = pageHeight - margin;
+
+    allLines.forEach((line, idx) => {
+      const lineHeight = line.fontSize * 1.4;
+
+      // Check if we need a new page
+      if (currentY - lineHeight < margin) {
+        // Save current page
+        if (currentPage.length > 0) {
+          pages.push([...currentPage]);
+        }
+        // Start new page
+        currentPage = [];
+        currentY = pageHeight - margin;
+      }
+
+      // Add line to current page
+      currentPage.push({
+        text: line.text,
+        fontSize: line.fontSize,
+        y: currentY
+      });
+
+      currentY -= lineHeight;
+    });
+
+    // Add last page
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+
+    // If no pages, create at least one empty page
+    if (pages.length === 0) {
+      pages.push([{
+        text: 'No content',
+        fontSize: 12,
+        y: pageHeight - margin
+      }]);
+    }
 
     // Build PDF structure
     const objects = [];
@@ -2471,84 +2552,62 @@ const ExportManager = {
       content: '<</Type /Catalog /Pages 2 0 R>>'
     });
 
-    // Object 2: Pages (will update with page references)
+    // Object 2: Pages (placeholder, will be inserted later)
     const pagesObjNum = objNum++;
 
-    // Generate pages with text
-    const pageObjects = [];
-    const contentObjects = [];
+    // Object 3: Font
     const fontObjNum = objNum++;
-    let y = pageHeight - margin;
-    let currentPageContent = [];
-
-    textContent.forEach(item => {
-      const lines = wrapText(item.text);
-      const itemLineHeight = item.fontSize * 1.2;
-
-      lines.forEach(line => {
-        if (y < margin + itemLineHeight) {
-          // Start new page
-          if (currentPageContent.length > 0) {
-            const contentObjNum = objNum++;
-            const pageObjNum = objNum++;
-
-            contentObjects.push({
-              num: contentObjNum,
-              content: currentPageContent.join('\n')
-            });
-
-            pageObjects.push({
-              num: pageObjNum,
-              content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font <</F1 ${fontObjNum} 0 R>>>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
-            });
-          }
-
-          currentPageContent = ['BT', `/F1 ${item.fontSize} Tf`, `${margin} ${pageHeight - margin} Td`, `${itemLineHeight} TL`];
-          y = pageHeight - margin;
-        }
-
-        const escapedLine = escapePDF(line);
-        currentPageContent.push(`(${escapedLine}) Tj`);
-        currentPageContent.push('T*');
-        y -= itemLineHeight;
-      });
-    });
-
-    // Add last page
-    if (currentPageContent.length > 0) {
-      currentPageContent.push('ET');
-      const contentObjNum = objNum++;
-      const pageObjNum = objNum++;
-
-      const streamContent = currentPageContent.join('\n');
-      contentObjects.push({
-        num: contentObjNum,
-        content: `<</Length ${streamContent.length}>>\nstream\n${streamContent}\nendstream`
-      });
-
-      pageObjects.push({
-        num: pageObjNum,
-        content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font <</F1 ${fontObjNum} 0 R>>>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
-      });
-    }
-
-    // Add font object
     objects.push({
       num: fontObjNum,
       content: '<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>'
     });
 
-    // Add content objects
-    contentObjects.forEach(obj => objects.push(obj));
+    // Generate page content streams and page objects
+    const pageObjectNums = [];
 
-    // Add page objects
-    pageObjects.forEach(obj => objects.push(obj));
+    pages.forEach(pageLines => {
+      // Create content stream
+      const streamLines = ['BT'];
+      let lastFontSize = 0;
 
-    // Update pages object with page references
-    const pageRefs = pageObjects.map(p => `${p.num} 0 R`).join(' ');
+      pageLines.forEach(line => {
+        // Set font if size changed
+        if (line.fontSize !== lastFontSize) {
+          streamLines.push(`/F1 ${line.fontSize} Tf`);
+          lastFontSize = line.fontSize;
+        }
+
+        // Position and draw text
+        streamLines.push(`${margin} ${line.y} Td`);
+        streamLines.push(`(${escapePDF(line.text)}) Tj`);
+        streamLines.push(`${-margin} ${-line.y} Td`); // Reset to origin
+      });
+
+      streamLines.push('ET');
+
+      const streamContent = streamLines.join('\n');
+
+      // Content stream object
+      const contentObjNum = objNum++;
+      objects.push({
+        num: contentObjNum,
+        content: `<</Length ${streamContent.length}>>\nstream\n${streamContent}\nendstream`
+      });
+
+      // Page object
+      const pageObjNum = objNum++;
+      pageObjectNums.push(pageObjNum);
+      objects.push({
+        num: pageObjNum,
+        content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font <</F1 ${fontObjNum} 0 R>>>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
+      });
+    });
+
+    // Insert Pages object
+    const pageRefs = pageObjectNums.map(num => `${num} 0 R`).join(' ');
     objects.splice(1, 0, {
       num: pagesObjNum,
-      content: `<</Type /Pages /Kids [${pageRefs}] /Count ${pageObjects.length}>>`
+      content: `<</Type /Pages /Kids [${pageRefs}] /Count ${pageObjectNums.length}>>`
     });
 
     // Build PDF file
