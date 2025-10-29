@@ -302,7 +302,7 @@ const ExportButton = {
 
     const shadow = host.attachShadow({ mode: 'open' });
     const colors = ThemeUtils.getColors();
-    
+
     shadow.innerHTML = `
       <style>
         :host { all: initial; }
@@ -323,21 +323,46 @@ const ExportButton = {
           transition: all 0.2s ease;
           position: relative;
         }
-        .btn:hover {
+        .btn:hover:not(.loading) {
           transform: scale(1.05);
           background: ${colors.exportButtonHover};
           box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        .btn:active {
+        .btn:active:not(.loading) {
           transform: scale(0.98);
         }
         .btn:focus-visible {
           outline: 3px solid ${colors.accentSecondary};
           outline-offset: 2px;
         }
+        .btn.loading {
+          cursor: wait;
+          pointer-events: none;
+        }
         .ico {
           width: 24px;
           height: 24px;
+          transition: opacity 0.2s ease;
+        }
+        .btn.loading .ico {
+          opacity: 0;
+        }
+        .spinner {
+          position: absolute;
+          width: 20px;
+          height: 20px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: ${colors.exportButtonText};
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+        .btn.loading .spinner {
+          opacity: 1;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
         .tooltip {
           position: absolute;
@@ -356,15 +381,16 @@ const ExportButton = {
           transition: opacity 0.2s ease;
           box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        .btn:hover .tooltip {
+        .btn:hover:not(.loading) .tooltip {
           opacity: 1;
         }
       </style>
       <div class="wrap">
         <button class="btn" type="button" aria-label="Export conversation" role="button">
           <span class="tooltip">Export conversation (Alt+E)</span>
+          <div class="spinner" aria-hidden="true"></div>
           <svg class="ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4" 
+            <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
@@ -372,10 +398,27 @@ const ExportButton = {
     `;
 
     const btn = shadow.querySelector('button.btn');
+    const tooltip = shadow.querySelector('.tooltip');
+
+    // Add method to control loading state
+    host.setLoading = (isLoading) => {
+      if (isLoading) {
+        btn.classList.add('loading');
+        btn.setAttribute('aria-busy', 'true');
+        tooltip.textContent = 'Processing conversation...';
+      } else {
+        btn.classList.remove('loading');
+        btn.setAttribute('aria-busy', 'false');
+        tooltip.textContent = 'Export conversation (Alt+E)';
+      }
+    };
+
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onClick();
+      if (!btn.classList.contains('loading')) {
+        onClick();
+      }
     });
 
     return host;
@@ -386,7 +429,11 @@ const ExportButton = {
    Timeline Component (Enhanced)
    =========================== */
 const Timeline = {
+  documentListeners: new Map(), // Track document-level listeners for cleanup
+
   render(container, messages) {
+    // Clean up any existing document listeners for this container
+    this.cleanup(container);
     const effectiveColors = globalState.settings.getEffectiveColors();
     
     // Filter out thinking/incomplete messages from timeline
@@ -490,19 +537,28 @@ const Timeline = {
       });
     };
     
-    let scrollTimeout;
+    let scrollTimeout = null;
+    let initialTimeout = null;
+
     const handleScroll = () => {
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(updateHighlight, 50);
     };
-    
-    previewPanel.addEventListener('scroll', handleScroll);
-    
-    setTimeout(updateHighlight, 100);
-    
+
+    previewPanel.addEventListener('scroll', handleScroll, { passive: true });
+
+    initialTimeout = setTimeout(updateHighlight, 100);
+
     globalState.scrollObserver = () => {
       previewPanel.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = null;
+      }
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
+        initialTimeout = null;
+      }
     };
   },
 
@@ -510,12 +566,16 @@ const Timeline = {
     const track = container.querySelector('.timeline-track');
     const selection = container.querySelector('.timeline-selection');
     const resizeHandles = container.querySelectorAll('.resize-handle');
-    
+
+    // Assign unique ID for tracking listeners
+    const containerId = `timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    container.dataset.timelineId = containerId;
+
     let isDragging = false;
     let isResizing = false;
     let resizeType = null;
     let startIndex = null;
-    
+
     container.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -523,24 +583,24 @@ const Timeline = {
       this.updateSelection(container);
       return false;
     });
-    
+
     track.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const segment = e.target.closest('.timeline-segment');
-      
+
       if (segment) {
         const clickedIndex = parseInt(segment.dataset.index);
-        
-        if (globalState.rangeSelection.start !== null && 
+
+        if (globalState.rangeSelection.start !== null &&
             globalState.rangeSelection.end !== null) {
           const start = Math.min(globalState.rangeSelection.start, globalState.rangeSelection.end);
           const end = Math.max(globalState.rangeSelection.start, globalState.rangeSelection.end);
-          
+
           if (clickedIndex < start || clickedIndex > end) {
             globalState.clearRange();
           }
         }
-        
+
         isDragging = true;
         startIndex = clickedIndex;
         globalState.rangeSelection.isSelecting = true;
@@ -548,13 +608,14 @@ const Timeline = {
         this.updateSelection(container);
       }
     });
-    
-    document.addEventListener('mousemove', (e) => {
+
+    // Create named handlers so they can be removed later
+    const handleMouseMove = (e) => {
       if (isDragging && !isResizing) {
         e.preventDefault();
         const segments = track.querySelectorAll('.timeline-segment');
         const rects = Array.from(segments).map(s => s.getBoundingClientRect());
-        
+
         let endIndex = null;
         for (let i = 0; i < rects.length; i++) {
           if (e.clientY >= rects[i].top && e.clientY <= rects[i].bottom) {
@@ -562,7 +623,7 @@ const Timeline = {
             break;
           }
         }
-        
+
         if (endIndex !== null) {
           globalState.setRange(
             Math.min(startIndex, endIndex),
@@ -574,15 +635,25 @@ const Timeline = {
         e.preventDefault();
         this.handleResize(e, container, resizeType);
       }
-    });
-    
-    document.addEventListener('mouseup', () => {
+    };
+
+    const handleMouseUp = () => {
       isDragging = false;
       isResizing = false;
       resizeType = null;
       globalState.rangeSelection.isSelecting = false;
+    };
+
+    // Add document-level listeners and track them
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    // Store handlers for cleanup
+    this.documentListeners.set(containerId, {
+      mousemove: handleMouseMove,
+      mouseup: handleMouseUp
     });
-    
+
     resizeHandles.forEach(handle => {
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -677,8 +748,36 @@ const Timeline = {
         globalState.rangeSelection.end === null) {
       return true;
     }
-    return idx >= globalState.rangeSelection.start && 
+    return idx >= globalState.rangeSelection.start &&
            idx <= globalState.rangeSelection.end;
+  },
+
+  cleanup(container) {
+    // Remove document-level listeners for this container
+    const containerId = container?.dataset?.timelineId;
+    if (containerId && this.documentListeners.has(containerId)) {
+      const listeners = this.documentListeners.get(containerId);
+      if (listeners.mousemove) {
+        document.removeEventListener('mousemove', listeners.mousemove);
+      }
+      if (listeners.mouseup) {
+        document.removeEventListener('mouseup', listeners.mouseup);
+      }
+      this.documentListeners.delete(containerId);
+    }
+  },
+
+  cleanupAll() {
+    // Clean up all document listeners
+    this.documentListeners.forEach((listeners) => {
+      if (listeners.mousemove) {
+        document.removeEventListener('mousemove', listeners.mousemove);
+      }
+      if (listeners.mouseup) {
+        document.removeEventListener('mouseup', listeners.mouseup);
+      }
+    });
+    this.documentListeners.clear();
   }
 };
 
@@ -1678,7 +1777,10 @@ const ChatRenderer = (() => {
   let harvestRef = null;
   let scheduled = false;
 
-  const raf = window.requestAnimationFrame || function(cb) { return setTimeout(cb, 16); };
+  // Bind requestAnimationFrame to window to preserve context
+  const raf = window.requestAnimationFrame
+    ? window.requestAnimationFrame.bind(window)
+    : function(cb) { return setTimeout(cb, 16); };
 
   function scheduleRender() {
     if (scheduled) return;
@@ -1739,12 +1841,7 @@ const ChatRenderer = (() => {
           labelsWrapper.appendChild(labelEl);
         });
 
-        if (msg.thinking.expandable) {
-          const expandable = document.createElement('div');
-          expandable.className = 'thinking-expandable';
-          expandable.textContent = '[Expandable content detected]';
-          labelsWrapper.appendChild(expandable);
-        }
+        // Note: expandable content indicator removed - it was non-functional
 
         thinkingContainer.appendChild(labelsWrapper);
       }
@@ -2175,12 +2272,10 @@ const ExportManager = {
   ${messages.map(msg => {
     let thinkingHtml = '';
     if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-      thinkingHtml = msg.thinking.labels.map(label => 
+      thinkingHtml = msg.thinking.labels.map(label =>
         `<div class="thinking-label">${Utils.escapeHtml(label.text)}</div>`
       ).join('');
-      if (msg.thinking.expandable) {
-        thinkingHtml += '<div class="thinking-label">[Expandable content available]</div>';
-      }
+      // Note: expandable content indicator removed - it was non-functional
     }
     
     const bubbleContent = MessageFormatter.format(msg);
@@ -2262,9 +2357,16 @@ const Harvester = {
   },
 
   async autoExpandThinking() {
-    // Find expandable elements
+    // Find expandable elements, but exclude our extension's UI elements
     const expandCandidates = Array.from(document.querySelectorAll('button, [role="button"]'));
     const expandButtons = expandCandidates.filter(button => {
+      // Skip if this is our export button or any element within our extension's UI
+      if (button.closest('[data-cgpt-overlay-export]') ||
+          button.closest('[data-cgpt-panel]') ||
+          button.getRootNode() instanceof ShadowRoot) {
+        return false;
+      }
+
       const ariaExpanded = button.getAttribute('aria-expanded');
       if (ariaExpanded === 'false') return true;
 
@@ -2276,8 +2378,12 @@ const Harvester = {
     });
 
     for (const button of expandButtons) {
-      button.click();
-      await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
+      try {
+        button.click();
+        await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
+      } catch (err) {
+        console.warn('[ChatGPT Export] Failed to click expand button:', err);
+      }
     }
   },
 
@@ -2415,31 +2521,35 @@ const Harvester = {
   },
 
   detectThinkingStates(container) {
-    const labels = [];
+    const timeLabels = [];
+    const stateLabels = [];
     const expanderSelectors = [];
     const seenTexts = new Set();
-    
+
     // Search for thinking patterns in descendants
     const searchNodes = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = (node.textContent || '').trim();
         if (!text) return;
-        
-        // Check time patterns
+
+        // Check time patterns (these are the most important - "Thought for X seconds")
         for (const pattern of CFG.thinkingPatterns.timePatterns) {
           const match = text.match(pattern);
           if (match && !seenTexts.has(match[0])) {
-            labels.push({ text: match[0] });
+            timeLabels.push({ text: match[0] });
             seenTexts.add(match[0]);
           }
         }
-        
-        // Check state patterns
-        for (const pattern of CFG.thinkingPatterns.statePatterns) {
-          const match = text.match(pattern);
-          if (match && !seenTexts.has(match[0])) {
-            labels.push({ text: match[0] });
-            seenTexts.add(match[0]);
+
+        // Check state patterns only if we haven't found time patterns yet
+        // (these are fallback indicators like "Analyzing", "Processing", etc.)
+        if (timeLabels.length === 0) {
+          for (const pattern of CFG.thinkingPatterns.statePatterns) {
+            const match = text.match(pattern);
+            if (match && !seenTexts.has(match[0])) {
+              stateLabels.push({ text: match[0] });
+              seenTexts.add(match[0]);
+            }
           }
         }
       } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2448,8 +2558,8 @@ const Harvester = {
           const ariaExpanded = node.getAttribute('aria-expanded');
           const hasRadixId = node.id && node.id.startsWith('radix-');
           const buttonText = (node.textContent || '').toLowerCase();
-          
-          if (ariaExpanded === 'false' || hasRadixId || 
+
+          if (ariaExpanded === 'false' || hasRadixId ||
               /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
             const selector = this.getElementSelector(node);
             if (selector && expanderSelectors.length < 3) {
@@ -2457,16 +2567,19 @@ const Harvester = {
             }
           }
         }
-        
+
         // Recurse into children
         for (const child of node.childNodes) {
           searchNodes(child);
         }
       }
     };
-    
+
     searchNodes(container);
-    
+
+    // Prefer time labels, fall back to state labels only if no time info found
+    const labels = timeLabels.length > 0 ? timeLabels : stateLabels.slice(0, 1);
+
     return {
       labels: labels,
       expandable: expanderSelectors.length > 0,
@@ -2591,8 +2704,14 @@ const Harvester = {
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
   },
 
-  extractBlocks(root) {
+  extractBlocks(root, depth = 0) {
     const blocks = [];
+
+    // Safety limit to prevent excessive recursion
+    if (depth > 50) {
+      console.warn('[ChatGPT Export] Maximum recursion depth reached in extractBlocks');
+      return blocks;
+    }
 
     const visit = (node) => {
       if (!node || node.nodeType !== 1) return;
@@ -2751,7 +2870,7 @@ const Harvester = {
     // Process all child nodes recursively
     Array.from(root.childNodes).forEach(child => {
       if (!visit(child) && child.nodeType === 1) {
-        const subBlocks = this.extractBlocks(child);
+        const subBlocks = this.extractBlocks(child, depth + 1);
         blocks.push(...subBlocks);
       }
     });
@@ -2853,6 +2972,7 @@ const PanelManager = {
   close() {
     if (panelHost) {
       ChatRenderer.destroy();
+      Timeline.cleanupAll();
 
       panelHost.style.animation = 'fadeOut 0.2s ease';
       setTimeout(() => {
@@ -2873,11 +2993,23 @@ const NotificationManager = {
   showToast(message, type = 'success') {
     const existing = document.querySelector('[data-cgpt-toast]');
     if (existing) existing.remove();
-    
+
     const toast = document.createElement('div');
     toast.setAttribute('data-cgpt-toast', '1');
     const colors = ThemeUtils.getColors();
-    
+
+    // Determine border color based on type
+    let borderColor;
+    if (type === 'success') {
+      borderColor = colors.accentSecondary;
+    } else if (type === 'error') {
+      borderColor = '#ef4444';
+    } else if (type === 'info') {
+      borderColor = colors.accentPrimary;
+    } else {
+      borderColor = colors.border;
+    }
+
     toast.style.cssText = `
       position: fixed;
       bottom: 20px;
@@ -2886,20 +3018,23 @@ const NotificationManager = {
       padding: 12px 20px;
       background: ${colors.bg};
       color: ${colors.text};
-      border: 1px solid ${type === 'success' ? colors.accentSecondary : '#ef4444'};
+      border: 1px solid ${borderColor};
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       z-index: ${CFG.zIndex + 100};
       animation: slideUp 0.3s ease;
     `;
-    
+
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
+    // Adjust timeout based on type (longer for info)
+    const timeout = type === 'info' ? 2000 : 3000;
+
     setTimeout(() => {
       toast.style.animation = 'fadeOut 0.3s ease';
       setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, timeout);
   }
 };
 
@@ -3190,19 +3325,43 @@ const OverlayManager = {
    Main Application
    =========================== */
 const App = {
+  isProcessing: false,
+
   async openExportPanel() {
+    // Prevent multiple concurrent requests
+    if (this.isProcessing) {
+      console.log('[ChatGPT Export] Already processing, ignoring duplicate request');
+      return;
+    }
+
+    this.isProcessing = true;
+
+    // Set button to loading state
+    if (overlayHost && overlayHost.setLoading) {
+      overlayHost.setLoading(true);
+    }
+
+    // Show processing notification
+    NotificationManager.showToast('Processing conversation...', 'info');
+
     try {
       const harvest = await Harvester.harvest();
-      
+
       if (!harvest.messages || harvest.messages.length === 0) {
         NotificationManager.showToast('No messages found to export', 'error');
         return;
       }
-      
+
       PanelManager.open(harvest);
     } catch (err) {
       console.error('[ChatGPT Export] Harvest failed:', err);
       NotificationManager.showToast('Failed to harvest conversation', 'error');
+    } finally {
+      // Reset loading state
+      this.isProcessing = false;
+      if (overlayHost && overlayHost.setLoading) {
+        overlayHost.setLoading(false);
+      }
     }
   },
 
