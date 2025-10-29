@@ -302,7 +302,7 @@ const ExportButton = {
 
     const shadow = host.attachShadow({ mode: 'open' });
     const colors = ThemeUtils.getColors();
-    
+
     shadow.innerHTML = `
       <style>
         :host { all: initial; }
@@ -323,21 +323,46 @@ const ExportButton = {
           transition: all 0.2s ease;
           position: relative;
         }
-        .btn:hover {
+        .btn:hover:not(.loading) {
           transform: scale(1.05);
           background: ${colors.exportButtonHover};
           box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        .btn:active {
+        .btn:active:not(.loading) {
           transform: scale(0.98);
         }
         .btn:focus-visible {
           outline: 3px solid ${colors.accentSecondary};
           outline-offset: 2px;
         }
+        .btn.loading {
+          cursor: wait;
+          pointer-events: none;
+        }
         .ico {
           width: 24px;
           height: 24px;
+          transition: opacity 0.2s ease;
+        }
+        .btn.loading .ico {
+          opacity: 0;
+        }
+        .spinner {
+          position: absolute;
+          width: 20px;
+          height: 20px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: ${colors.exportButtonText};
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+        .btn.loading .spinner {
+          opacity: 1;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
         .tooltip {
           position: absolute;
@@ -356,15 +381,16 @@ const ExportButton = {
           transition: opacity 0.2s ease;
           box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        .btn:hover .tooltip {
+        .btn:hover:not(.loading) .tooltip {
           opacity: 1;
         }
       </style>
       <div class="wrap">
         <button class="btn" type="button" aria-label="Export conversation" role="button">
           <span class="tooltip">Export conversation (Alt+E)</span>
+          <div class="spinner" aria-hidden="true"></div>
           <svg class="ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4" 
+            <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 3v12m0 0l-4-4m4 4l4-4"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
@@ -372,10 +398,27 @@ const ExportButton = {
     `;
 
     const btn = shadow.querySelector('button.btn');
+    const tooltip = shadow.querySelector('.tooltip');
+
+    // Add method to control loading state
+    host.setLoading = (isLoading) => {
+      if (isLoading) {
+        btn.classList.add('loading');
+        btn.setAttribute('aria-busy', 'true');
+        tooltip.textContent = 'Processing conversation...';
+      } else {
+        btn.classList.remove('loading');
+        btn.setAttribute('aria-busy', 'false');
+        tooltip.textContent = 'Export conversation (Alt+E)';
+      }
+    };
+
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onClick();
+      if (!btn.classList.contains('loading')) {
+        onClick();
+      }
     });
 
     return host;
@@ -2950,11 +2993,23 @@ const NotificationManager = {
   showToast(message, type = 'success') {
     const existing = document.querySelector('[data-cgpt-toast]');
     if (existing) existing.remove();
-    
+
     const toast = document.createElement('div');
     toast.setAttribute('data-cgpt-toast', '1');
     const colors = ThemeUtils.getColors();
-    
+
+    // Determine border color based on type
+    let borderColor;
+    if (type === 'success') {
+      borderColor = colors.accentSecondary;
+    } else if (type === 'error') {
+      borderColor = '#ef4444';
+    } else if (type === 'info') {
+      borderColor = colors.accentPrimary;
+    } else {
+      borderColor = colors.border;
+    }
+
     toast.style.cssText = `
       position: fixed;
       bottom: 20px;
@@ -2963,20 +3018,23 @@ const NotificationManager = {
       padding: 12px 20px;
       background: ${colors.bg};
       color: ${colors.text};
-      border: 1px solid ${type === 'success' ? colors.accentSecondary : '#ef4444'};
+      border: 1px solid ${borderColor};
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       z-index: ${CFG.zIndex + 100};
       animation: slideUp 0.3s ease;
     `;
-    
+
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
+    // Adjust timeout based on type (longer for info)
+    const timeout = type === 'info' ? 2000 : 3000;
+
     setTimeout(() => {
       toast.style.animation = 'fadeOut 0.3s ease';
       setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, timeout);
   }
 };
 
@@ -3267,19 +3325,43 @@ const OverlayManager = {
    Main Application
    =========================== */
 const App = {
+  isProcessing: false,
+
   async openExportPanel() {
+    // Prevent multiple concurrent requests
+    if (this.isProcessing) {
+      console.log('[ChatGPT Export] Already processing, ignoring duplicate request');
+      return;
+    }
+
+    this.isProcessing = true;
+
+    // Set button to loading state
+    if (overlayHost && overlayHost.setLoading) {
+      overlayHost.setLoading(true);
+    }
+
+    // Show processing notification
+    NotificationManager.showToast('Processing conversation...', 'info');
+
     try {
       const harvest = await Harvester.harvest();
-      
+
       if (!harvest.messages || harvest.messages.length === 0) {
         NotificationManager.showToast('No messages found to export', 'error');
         return;
       }
-      
+
       PanelManager.open(harvest);
     } catch (err) {
       console.error('[ChatGPT Export] Harvest failed:', err);
       NotificationManager.showToast('Failed to harvest conversation', 'error');
+    } finally {
+      // Reset loading state
+      this.isProcessing = false;
+      if (overlayHost && overlayHost.setLoading) {
+        overlayHost.setLoading(false);
+      }
     }
   },
 
