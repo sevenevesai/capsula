@@ -386,7 +386,11 @@ const ExportButton = {
    Timeline Component (Enhanced)
    =========================== */
 const Timeline = {
+  documentListeners: new Map(), // Track document-level listeners for cleanup
+
   render(container, messages) {
+    // Clean up any existing document listeners for this container
+    this.cleanup(container);
     const effectiveColors = globalState.settings.getEffectiveColors();
     
     // Filter out thinking/incomplete messages from timeline
@@ -490,19 +494,28 @@ const Timeline = {
       });
     };
     
-    let scrollTimeout;
+    let scrollTimeout = null;
+    let initialTimeout = null;
+
     const handleScroll = () => {
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(updateHighlight, 50);
     };
-    
-    previewPanel.addEventListener('scroll', handleScroll);
-    
-    setTimeout(updateHighlight, 100);
-    
+
+    previewPanel.addEventListener('scroll', handleScroll, { passive: true });
+
+    initialTimeout = setTimeout(updateHighlight, 100);
+
     globalState.scrollObserver = () => {
       previewPanel.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = null;
+      }
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
+        initialTimeout = null;
+      }
     };
   },
 
@@ -510,12 +523,16 @@ const Timeline = {
     const track = container.querySelector('.timeline-track');
     const selection = container.querySelector('.timeline-selection');
     const resizeHandles = container.querySelectorAll('.resize-handle');
-    
+
+    // Assign unique ID for tracking listeners
+    const containerId = `timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    container.dataset.timelineId = containerId;
+
     let isDragging = false;
     let isResizing = false;
     let resizeType = null;
     let startIndex = null;
-    
+
     container.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -523,24 +540,24 @@ const Timeline = {
       this.updateSelection(container);
       return false;
     });
-    
+
     track.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const segment = e.target.closest('.timeline-segment');
-      
+
       if (segment) {
         const clickedIndex = parseInt(segment.dataset.index);
-        
-        if (globalState.rangeSelection.start !== null && 
+
+        if (globalState.rangeSelection.start !== null &&
             globalState.rangeSelection.end !== null) {
           const start = Math.min(globalState.rangeSelection.start, globalState.rangeSelection.end);
           const end = Math.max(globalState.rangeSelection.start, globalState.rangeSelection.end);
-          
+
           if (clickedIndex < start || clickedIndex > end) {
             globalState.clearRange();
           }
         }
-        
+
         isDragging = true;
         startIndex = clickedIndex;
         globalState.rangeSelection.isSelecting = true;
@@ -548,13 +565,14 @@ const Timeline = {
         this.updateSelection(container);
       }
     });
-    
-    document.addEventListener('mousemove', (e) => {
+
+    // Create named handlers so they can be removed later
+    const handleMouseMove = (e) => {
       if (isDragging && !isResizing) {
         e.preventDefault();
         const segments = track.querySelectorAll('.timeline-segment');
         const rects = Array.from(segments).map(s => s.getBoundingClientRect());
-        
+
         let endIndex = null;
         for (let i = 0; i < rects.length; i++) {
           if (e.clientY >= rects[i].top && e.clientY <= rects[i].bottom) {
@@ -562,7 +580,7 @@ const Timeline = {
             break;
           }
         }
-        
+
         if (endIndex !== null) {
           globalState.setRange(
             Math.min(startIndex, endIndex),
@@ -574,15 +592,25 @@ const Timeline = {
         e.preventDefault();
         this.handleResize(e, container, resizeType);
       }
-    });
-    
-    document.addEventListener('mouseup', () => {
+    };
+
+    const handleMouseUp = () => {
       isDragging = false;
       isResizing = false;
       resizeType = null;
       globalState.rangeSelection.isSelecting = false;
+    };
+
+    // Add document-level listeners and track them
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    // Store handlers for cleanup
+    this.documentListeners.set(containerId, {
+      mousemove: handleMouseMove,
+      mouseup: handleMouseUp
     });
-    
+
     resizeHandles.forEach(handle => {
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -677,8 +705,36 @@ const Timeline = {
         globalState.rangeSelection.end === null) {
       return true;
     }
-    return idx >= globalState.rangeSelection.start && 
+    return idx >= globalState.rangeSelection.start &&
            idx <= globalState.rangeSelection.end;
+  },
+
+  cleanup(container) {
+    // Remove document-level listeners for this container
+    const containerId = container?.dataset?.timelineId;
+    if (containerId && this.documentListeners.has(containerId)) {
+      const listeners = this.documentListeners.get(containerId);
+      if (listeners.mousemove) {
+        document.removeEventListener('mousemove', listeners.mousemove);
+      }
+      if (listeners.mouseup) {
+        document.removeEventListener('mouseup', listeners.mouseup);
+      }
+      this.documentListeners.delete(containerId);
+    }
+  },
+
+  cleanupAll() {
+    // Clean up all document listeners
+    this.documentListeners.forEach((listeners) => {
+      if (listeners.mousemove) {
+        document.removeEventListener('mousemove', listeners.mousemove);
+      }
+      if (listeners.mouseup) {
+        document.removeEventListener('mouseup', listeners.mouseup);
+      }
+    });
+    this.documentListeners.clear();
   }
 };
 
@@ -2262,9 +2318,16 @@ const Harvester = {
   },
 
   async autoExpandThinking() {
-    // Find expandable elements
+    // Find expandable elements, but exclude our extension's UI elements
     const expandCandidates = Array.from(document.querySelectorAll('button, [role="button"]'));
     const expandButtons = expandCandidates.filter(button => {
+      // Skip if this is our export button or any element within our extension's UI
+      if (button.closest('[data-cgpt-overlay-export]') ||
+          button.closest('[data-cgpt-panel]') ||
+          button.getRootNode() instanceof ShadowRoot) {
+        return false;
+      }
+
       const ariaExpanded = button.getAttribute('aria-expanded');
       if (ariaExpanded === 'false') return true;
 
@@ -2276,8 +2339,12 @@ const Harvester = {
     });
 
     for (const button of expandButtons) {
-      button.click();
-      await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
+      try {
+        button.click();
+        await new Promise(resolve => setTimeout(resolve, CFG.autoExpandDelay));
+      } catch (err) {
+        console.warn('[ChatGPT Export] Failed to click expand button:', err);
+      }
     }
   },
 
@@ -2591,8 +2658,14 @@ const Harvester = {
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
   },
 
-  extractBlocks(root) {
+  extractBlocks(root, depth = 0) {
     const blocks = [];
+
+    // Safety limit to prevent excessive recursion
+    if (depth > 50) {
+      console.warn('[ChatGPT Export] Maximum recursion depth reached in extractBlocks');
+      return blocks;
+    }
 
     const visit = (node) => {
       if (!node || node.nodeType !== 1) return;
@@ -2751,7 +2824,7 @@ const Harvester = {
     // Process all child nodes recursively
     Array.from(root.childNodes).forEach(child => {
       if (!visit(child) && child.nodeType === 1) {
-        const subBlocks = this.extractBlocks(child);
+        const subBlocks = this.extractBlocks(child, depth + 1);
         blocks.push(...subBlocks);
       }
     });
@@ -2853,6 +2926,7 @@ const PanelManager = {
   close() {
     if (panelHost) {
       ChatRenderer.destroy();
+      Timeline.cleanupAll();
 
       panelHost.style.animation = 'fadeOut 0.2s ease';
       setTimeout(() => {
