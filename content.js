@@ -1798,12 +1798,7 @@ const ChatRenderer = (() => {
           labelsWrapper.appendChild(labelEl);
         });
 
-        if (msg.thinking.expandable) {
-          const expandable = document.createElement('div');
-          expandable.className = 'thinking-expandable';
-          expandable.textContent = '[Expandable content detected]';
-          labelsWrapper.appendChild(expandable);
-        }
+        // Note: expandable content indicator removed - it was non-functional
 
         thinkingContainer.appendChild(labelsWrapper);
       }
@@ -2234,12 +2229,10 @@ const ExportManager = {
   ${messages.map(msg => {
     let thinkingHtml = '';
     if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-      thinkingHtml = msg.thinking.labels.map(label => 
+      thinkingHtml = msg.thinking.labels.map(label =>
         `<div class="thinking-label">${Utils.escapeHtml(label.text)}</div>`
       ).join('');
-      if (msg.thinking.expandable) {
-        thinkingHtml += '<div class="thinking-label">[Expandable content available]</div>';
-      }
+      // Note: expandable content indicator removed - it was non-functional
     }
     
     const bubbleContent = MessageFormatter.format(msg);
@@ -2485,31 +2478,35 @@ const Harvester = {
   },
 
   detectThinkingStates(container) {
-    const labels = [];
+    const timeLabels = [];
+    const stateLabels = [];
     const expanderSelectors = [];
     const seenTexts = new Set();
-    
+
     // Search for thinking patterns in descendants
     const searchNodes = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = (node.textContent || '').trim();
         if (!text) return;
-        
-        // Check time patterns
+
+        // Check time patterns (these are the most important - "Thought for X seconds")
         for (const pattern of CFG.thinkingPatterns.timePatterns) {
           const match = text.match(pattern);
           if (match && !seenTexts.has(match[0])) {
-            labels.push({ text: match[0] });
+            timeLabels.push({ text: match[0] });
             seenTexts.add(match[0]);
           }
         }
-        
-        // Check state patterns
-        for (const pattern of CFG.thinkingPatterns.statePatterns) {
-          const match = text.match(pattern);
-          if (match && !seenTexts.has(match[0])) {
-            labels.push({ text: match[0] });
-            seenTexts.add(match[0]);
+
+        // Check state patterns only if we haven't found time patterns yet
+        // (these are fallback indicators like "Analyzing", "Processing", etc.)
+        if (timeLabels.length === 0) {
+          for (const pattern of CFG.thinkingPatterns.statePatterns) {
+            const match = text.match(pattern);
+            if (match && !seenTexts.has(match[0])) {
+              stateLabels.push({ text: match[0] });
+              seenTexts.add(match[0]);
+            }
           }
         }
       } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -2518,8 +2515,8 @@ const Harvester = {
           const ariaExpanded = node.getAttribute('aria-expanded');
           const hasRadixId = node.id && node.id.startsWith('radix-');
           const buttonText = (node.textContent || '').toLowerCase();
-          
-          if (ariaExpanded === 'false' || hasRadixId || 
+
+          if (ariaExpanded === 'false' || hasRadixId ||
               /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
             const selector = this.getElementSelector(node);
             if (selector && expanderSelectors.length < 3) {
@@ -2527,16 +2524,19 @@ const Harvester = {
             }
           }
         }
-        
+
         // Recurse into children
         for (const child of node.childNodes) {
           searchNodes(child);
         }
       }
     };
-    
+
     searchNodes(container);
-    
+
+    // Prefer time labels, fall back to state labels only if no time info found
+    const labels = timeLabels.length > 0 ? timeLabels : stateLabels.slice(0, 1);
+
     return {
       labels: labels,
       expandable: expanderSelectors.length > 0,
