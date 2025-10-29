@@ -1734,7 +1734,10 @@ const ChatRenderer = (() => {
   let harvestRef = null;
   let scheduled = false;
 
-  const raf = window.requestAnimationFrame || function(cb) { return setTimeout(cb, 16); };
+  // Bind requestAnimationFrame to window to preserve context
+  const raf = window.requestAnimationFrame
+    ? window.requestAnimationFrame.bind(window)
+    : function(cb) { return setTimeout(cb, 16); };
 
   function scheduleRender() {
     if (scheduled) return;
