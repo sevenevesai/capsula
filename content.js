@@ -4015,8 +4015,13 @@ const Harvester = {
    =========================== */
 const Utils = {
   escapeHtml(s) {
-    return String(s || '').replace(/[&<>"]/g, c => 
+    return String(s || '').replace(/[&<>"]/g, c =>
       ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  },
+
+  // Alias for consistency
+  escapeHTML(s) {
+    return this.escapeHtml(s);
   },
 
   safeUrl(url) {
