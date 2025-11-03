@@ -271,6 +271,10 @@ const ThemeUtils = {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   },
 
+  isDark() {
+    return this.getTheme() === 'dark';
+  },
+
   getColors() {
     return CFG.theme[this.getTheme()];
   },
