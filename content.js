@@ -1076,19 +1076,19 @@ const ExportPanel = {
           <option value="markdown">Markdown (.md)</option>
           <option value="html">HTML (.html)</option>
           <option value="json">JSON (.json)</option>
-          <option value="pdf">PDF (.pdf)</option>
+          <option value="dashboard">Dashboard (.html)</option>
         </select>
-        
+
         <button class="secondary-btn" data-action="copy">
           Copy to Clipboard
         </button>
-        
+
         <button class="secondary-btn" data-action="clear-range" style="display: none;">
           Clear Selection
         </button>
-        
+
         <div style="flex: 1"></div>
-        
+
         <button class="export-btn" data-action="export">
           Export Conversation
         </button>
@@ -2055,8 +2055,8 @@ const ExportManager = {
         return this.toHTML(filteredMessages, harvest.meta);
       case 'json':
         return this.toJSON(filteredMessages, harvest.meta);
-      case 'pdf':
-        return this.toPDF(filteredMessages, harvest.meta);
+      case 'dashboard':
+        return DashboardGenerator.generate(filteredMessages, harvest.meta);
       default:
         return this.toMarkdown(filteredMessages, harvest.meta);
     }
@@ -2173,342 +2173,94 @@ const ExportManager = {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data: blob:; style-src 'unsafe-inline'; font-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
   <title>${Utils.escapeHtml(meta.title)}</title>
   <style>
-    * {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      text-rendering: optimizeLegibility;
-    }
-
     body {
-      font-family: ${chatFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-      line-height: 1.7;
+      font-family: ${chatFont};
+      line-height: 1.6;
       max-width: 800px;
       margin: 0 auto;
-      padding: 32px 24px;
-      background: #fafafa;
-      color: #1a1a1a;
-    }
-
-    .meta {
-      background: #ffffff;
-      padding: 20px 24px;
-      border-radius: 12px;
-      margin-bottom: 32px;
-      font-size: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      border: 1px solid #e5e7eb;
-    }
-
-    .meta h1 {
-      margin: 0 0 12px 0;
-      font-size: 24px;
-      font-weight: 600;
+      padding: 20px;
+      background: #f9fafb;
       color: #111827;
     }
-
-    .meta p {
-      margin: 6px 0;
-      color: #4b5563;
-    }
-
-    .message {
-      margin-bottom: 28px;
-      display: flex;
-      page-break-inside: avoid;
-    }
-
-    .message.user {
-      justify-content: flex-end;
-    }
-
-    .message.assistant {
-      justify-content: flex-start;
-    }
-
-    .thinking-label {
+    .meta {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
       font-size: 13px;
-      color: #6b7280;
-      margin-bottom: 8px;
-      font-style: italic;
-      padding: 0 4px;
     }
-
+    .message {
+      margin-bottom: 20px;
+      display: flex;
+    }
+    .message.user { justify-content: flex-end; }
+    .message.assistant { justify-content: flex-start; }
+    .thinking-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+      font-style: italic;
+    }
     .bubble {
       max-width: 70%;
-      padding: 16px 20px;
+      padding: 12px 16px;
       border-radius: 16px;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
     }
-
     .message.user .bubble {
       background: ${effectiveColors.user};
       color: white;
       border-bottom-right-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-
     .message.assistant .bubble {
-      background: #ffffff;
-      color: #1a1a1a;
+      background: ${effectiveColors.assistant};
+      color: #111827;
       border-bottom-left-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border: 1px solid #e5e7eb;
     }
-
     .role {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      margin-bottom: 8px;
-      opacity: 0.75;
-      letter-spacing: 0.3px;
+      margin-bottom: 4px;
+      opacity: 0.7;
     }
-
     .citation {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px;
-      background: rgba(0,0,0,0.03);
+      padding: 8px;
+      background: rgba(0,0,0,0.05);
       border-radius: 8px;
-      margin: 12px 0;
-      border: 1px solid rgba(0,0,0,0.06);
+      margin: 8px 0;
     }
-
     .citation img {
       width: 60px;
       height: 60px;
       object-fit: cover;
       border-radius: 6px;
     }
-
     pre {
-      background: #1e293b;
-      color: #f1f5f9;
-      padding: 20px 24px;
-      border-radius: 10px;
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 12px;
+      border-radius: 8px;
       overflow-x: auto;
-      margin: 16px 0;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      border: 1px solid #334155;
-      page-break-inside: avoid;
     }
-
-    pre code {
-      display: block;
-      line-height: 1.6;
-      white-space: pre;
-      word-wrap: normal;
-    }
-
     code {
-      font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
-      font-size: 13.5px;
-      letter-spacing: 0.02em;
-    }
-
-    p code, li code {
-      background: #f3f4f6;
-      padding: 2px 6px;
-      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', monospace;
       font-size: 13px;
-      color: #dc2626;
-      border: 1px solid #e5e7eb;
     }
-
     img {
       max-width: 100%;
       height: auto;
       border-radius: 8px;
-      margin: 12px 0;
-      page-break-inside: avoid;
+      margin: 8px 0;
     }
-
     a {
-      color: #2563eb;
-      text-decoration: none;
-      border-bottom: 1px solid transparent;
-      transition: border-color 0.2s;
+      color: #3b82f6;
     }
-
-    a:hover {
-      border-bottom-color: #2563eb;
-    }
-
-    p {
-      margin: 12px 0;
-    }
-
-    ul, ol {
-      margin: 12px 0;
-      padding-left: 28px;
-    }
-
-    li {
-      margin: 6px 0;
-    }
-
-    blockquote {
-      border-left: 3px solid #cbd5e1;
-      padding-left: 16px;
-      margin: 16px 0;
-      color: #64748b;
-      font-style: italic;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 16px 0;
-      page-break-inside: avoid;
-    }
-
-    th, td {
-      border: 1px solid #e5e7eb;
-      padding: 10px 12px;
-      text-align: left;
-    }
-
-    th {
-      background: #f9fafb;
-      font-weight: 600;
-    }
-
     @media (prefers-color-scheme: dark) {
-      body {
-        background: #0f172a;
-        color: #e2e8f0;
-      }
-
-      .meta {
-        background: #1e293b;
-        border-color: #334155;
-      }
-
-      .meta h1 {
-        color: #f1f5f9;
-      }
-
-      .meta p {
-        color: #94a3b8;
-      }
-
-      .message.assistant .bubble {
-        background: #1e293b;
-        color: #e2e8f0;
-        border-color: #334155;
-      }
-
-      p code, li code {
-        background: #334155;
-        color: #fca5a5;
-        border-color: #475569;
-      }
-
-      blockquote {
-        border-left-color: #475569;
-        color: #94a3b8;
-      }
-
-      th {
-        background: #1e293b;
-      }
-
-      th, td {
-        border-color: #334155;
-      }
-    }
-
-    @media print {
-      * {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-
-      body {
-        background: white;
-        color: black;
-        padding: 0;
-        max-width: 100%;
-        font-family: ${chatFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-      }
-
-      .meta {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        box-shadow: none;
-        page-break-after: avoid;
-      }
-
-      .message {
-        page-break-inside: avoid;
-        margin-bottom: 24px;
-      }
-
-      .bubble {
-        box-shadow: none;
-        max-width: 100%;
-      }
-
-      .message.user .bubble {
-        background: #e3f2fd;
-        color: #0d47a1;
-      }
-
-      .message.assistant .bubble {
-        background: #f5f5f5;
-        color: black;
-        border: 1px solid #ddd;
-      }
-
-      pre {
-        background: #f8f9fa;
-        color: #212529;
-        border: 1px solid #dee2e6;
-        box-shadow: none;
-        page-break-inside: avoid;
-        padding: 18px 22px;
-        overflow: visible;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-      }
-
-      pre code {
-        color: #212529;
-      }
-
-      p code, li code {
-        background: #f8f9fa;
-        color: #d63384;
-        border: 1px solid #dee2e6;
-      }
-
-      a {
-        color: #0066cc;
-        text-decoration: underline;
-      }
-
-      img {
-        page-break-inside: avoid;
-        max-height: 600px;
-      }
-
-      blockquote {
-        page-break-inside: avoid;
-      }
-
-      h1, h2, h3, h4, h5, h6 {
-        page-break-after: avoid;
-      }
-
-      table {
-        page-break-inside: auto;
-      }
-
-      tr {
-        page-break-inside: avoid;
-        page-break-after: auto;
-      }
+      body { background: #111827; color: #f9fafb; }
+      .meta { background: #374151; }
+      .message.assistant .bubble { background: #374151; color: #f9fafb; }
     }
   </style>
 </head>
@@ -2569,656 +2321,20 @@ const ExportManager = {
     }, null, 2);
   },
 
-  toPDF(messages, meta) {
-    // Enhanced PDF generator with beautiful styling
-    // Supports colors, multiple fonts, code blocks, and inline formatting
-
-    const pageWidth = 595; // A4 width in points
-    const pageHeight = 842; // A4 height in points
-    const margin = 50;
-    const contentWidth = pageWidth - (2 * margin);
-
-    // Color palette (matching HTML export)
-    const colors = {
-      userBg: [59/255, 130/255, 246/255],      // #3b82f6 blue
-      userText: [1, 1, 1],                      // white
-      assistantBg: [243/255, 244/255, 246/255], // #f3f4f6 light gray
-      assistantText: [17/255, 24/255, 39/255],  // #111827 dark
-      codeBg: [31/255, 41/255, 55/255],         // #1f2937 dark gray
-      codeText: [243/255, 244/255, 246/255],    // #f3f4f6 light
-      headerText: [107/255, 114/255, 128/255],  // #6b7280 gray
-      normalText: [17/255, 24/255, 39/255],     // #111827 dark
-      divider: [209/255, 213/255, 219/255],     // #d1d5db light gray
-      pageBg: [249/255, 250/255, 251/255]       // #f9fafb very light gray
-    };
-
-    // Font IDs
-    const fonts = {
-      regular: 'F1',
-      bold: 'F2',
-      italic: 'F3',
-      code: 'F4'
-    };
-
-    // Helper to escape special PDF characters
-    const escapePDF = (str) => {
-      if (!str) return '';
-      return str
-        .replace(/\\/g, '\\\\')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)')
-        .replace(/\r/g, '')
-        .replace(/\n/g, ' ');
-    };
-
-    // Helper to wrap text
-    const wrapText = (text, maxChars = 75) => {
-      if (!text) return [''];
-      const lines = [];
-      const paragraphs = text.split('\n');
-
-      paragraphs.forEach(para => {
-        if (!para.trim()) {
-          lines.push('');
-          return;
-        }
-
-        if (para.length <= maxChars) {
-          lines.push(para);
-        } else {
-          const words = para.split(' ');
-          let currentLine = '';
-
-          words.forEach(word => {
-            const testLine = currentLine ? currentLine + ' ' + word : word;
-            if (testLine.length <= maxChars) {
-              currentLine = testLine;
-            } else {
-              if (currentLine) lines.push(currentLine);
-              currentLine = word;
-              while (currentLine.length > maxChars) {
-                lines.push(currentLine.substring(0, maxChars));
-                currentLine = currentLine.substring(maxChars);
-              }
-            }
-          });
-
-          if (currentLine) lines.push(currentLine);
-        }
-      });
-
-      return lines.length > 0 ? lines : [''];
-    };
-
-    // Parse inline markdown and create text segments
-    const parseInlineFormatting = (text) => {
-      const segments = [];
-      let remaining = text || '';
-
-      // Simple regex patterns for inline formatting
-      const patterns = [
-        { regex: /`([^`]+)`/g, type: 'code' },        // `code`
-        { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },  // **bold**
-        { regex: /_([^_]+)_/g, type: 'italic' }        // _italic_
-      ];
-
-      // For now, just escape and return - full parsing can be added later
-      segments.push({ text: escapePDF(text), font: fonts.regular });
-      return segments;
-    };
-
-    // Build render commands (shapes and text)
-    const renderCommands = [];
-
-    // Add header section
-    let currentY = pageHeight - margin;
-
-    renderCommands.push({
-      type: 'text',
-      x: margin,
-      y: currentY,
-      text: escapePDF(meta.title || 'ChatGPT Conversation'),
-      font: fonts.bold,
-      fontSize: 18,
-      color: colors.normalText
-    });
-    currentY -= 25;
-
-    renderCommands.push({
-      type: 'text',
-      x: margin,
-      y: currentY,
-      text: `Exported: ${new Date(meta.exported_at).toLocaleString()}`,
-      font: fonts.regular,
-      fontSize: 9,
-      color: colors.headerText
-    });
-    currentY -= 12;
-
-    if (meta.model) {
-      renderCommands.push({
-        type: 'text',
-        x: margin,
-        y: currentY,
-        text: `Model: ${escapePDF(meta.model)}`,
-        font: fonts.regular,
-        fontSize: 9,
-        color: colors.headerText
-      });
-      currentY -= 12;
-    }
-
-    renderCommands.push({
-      type: 'text',
-      x: margin,
-      y: currentY,
-      text: `Version: ChatGPT Export v${CFG.version}`,
-      font: fonts.regular,
-      fontSize: 9,
-      color: colors.headerText
-    });
-    currentY -= 20;
-
-    // Add divider
-    renderCommands.push({
-      type: 'line',
-      x1: margin,
-      y1: currentY,
-      x2: pageWidth - margin,
-      y2: currentY,
-      color: colors.divider,
-      width: 1
-    });
-    currentY -= 25;
-
-    // Process messages
-    messages.forEach((msg, msgIdx) => {
-      const roleLabel = msg.role === 'user' ? 'You' : 'ChatGPT';
-      const bgColor = msg.role === 'user' ? colors.userBg : colors.assistantBg;
-      const textColor = msg.role === 'user' ? colors.userText : colors.assistantText;
-
-      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
-      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
-      const hasContent = hasBlocks || hasPlain;
-
-      if (!hasContent || msg.isThinking) return;
-
-      // Check if we need a new page
-      if (currentY < margin + 100) {
-        renderCommands.push({ type: 'page-break' });
-        currentY = pageHeight - margin;
-      }
-
-      // Role label
-      renderCommands.push({
-        type: 'text',
-        x: margin,
-        y: currentY,
-        text: escapePDF(roleLabel),
-        font: fonts.bold,
-        fontSize: 11,
-        color: textColor
-      });
-      currentY -= 18;
-
-      // Calculate message content height (approximate)
-      let contentStartY = currentY;
-      let messageLines = [];
-
-      if (hasBlocks) {
-        msg.blocks.forEach(block => {
-          switch (block.kind) {
-            case 'heading':
-              const headingLines = wrapText(block.text || '', 70);
-              headingLines.forEach(line => {
-                messageLines.push({
-                  text: escapePDF(line),
-                  font: fonts.bold,
-                  fontSize: 11,
-                  color: textColor,
-                  lineHeight: 16
-                });
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'para':
-              const paraText = block.text || block.md || '';
-              const paraLines = wrapText(paraText, 75);
-              paraLines.forEach(line => {
-                messageLines.push({
-                  text: escapePDF(line),
-                  font: fonts.regular,
-                  fontSize: 10,
-                  color: textColor,
-                  lineHeight: 14
-                });
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'code':
-              messageLines.push({
-                text: `Code (${escapePDF(block.language || 'text')}):`,
-                font: fonts.italic,
-                fontSize: 9,
-                color: textColor,
-                lineHeight: 13
-              });
-
-              // Mark code block start
-              messageLines.push({ codeBlockStart: true });
-
-              const codeLines = wrapText(block.text || '', 80);
-              codeLines.forEach(line => {
-                messageLines.push({
-                  text: escapePDF(line),
-                  font: fonts.code,
-                  fontSize: 8,
-                  color: colors.codeText,
-                  lineHeight: 11,
-                  isCode: true
-                });
-              });
-
-              // Mark code block end
-              messageLines.push({ codeBlockEnd: true });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'list':
-              if (block.items && Array.isArray(block.items)) {
-                block.items.forEach((item, i) => {
-                  const prefix = block.ordered ? `${i + 1}. ` : '• ';
-                  const itemText = item.text || item.md || '';
-                  const wrappedLines = wrapText(itemText, 72);
-                  wrappedLines.forEach((line, idx) => {
-                    messageLines.push({
-                      text: escapePDF(idx === 0 ? prefix + line : '  ' + line),
-                      font: fonts.regular,
-                      fontSize: 10,
-                      color: textColor,
-                      lineHeight: 14
-                    });
-                  });
-                });
-                messageLines.push({ empty: true, lineHeight: 8 });
-              }
-              break;
-
-            case 'quote':
-              const quoteText = block.md || block.text || '';
-              const quoteLines = wrapText(quoteText, 70);
-              quoteLines.forEach(line => {
-                messageLines.push({
-                  text: escapePDF('> ' + line),
-                  font: fonts.italic,
-                  fontSize: 10,
-                  color: textColor,
-                  lineHeight: 14
-                });
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'math':
-              messageLines.push({
-                text: `[Math: ${escapePDF(block.latex || '')}]`,
-                font: fonts.italic,
-                fontSize: 9,
-                color: textColor,
-                lineHeight: 13
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'image':
-              messageLines.push({
-                text: `[Image: ${escapePDF(block.alt || 'image')}]`,
-                font: fonts.italic,
-                fontSize: 9,
-                color: textColor,
-                lineHeight: 13
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'link':
-              const linkText = `${block.text || 'Link'}: ${block.href || ''}`;
-              const linkLines = wrapText(linkText, 70);
-              linkLines.forEach(line => {
-                messageLines.push({
-                  text: escapePDF(line),
-                  font: fonts.regular,
-                  fontSize: 9,
-                  color: textColor,
-                  lineHeight: 13
-                });
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'divider':
-              messageLines.push({
-                text: '─'.repeat(70),
-                font: fonts.regular,
-                fontSize: 9,
-                color: textColor,
-                lineHeight: 13
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-
-            case 'table':
-              messageLines.push({
-                text: '[Table content]',
-                font: fonts.italic,
-                fontSize: 9,
-                color: textColor,
-                lineHeight: 13
-              });
-              messageLines.push({ empty: true, lineHeight: 8 });
-              break;
-          }
-        });
-      } else if (hasPlain) {
-        const plainLines = wrapText(msg.plain.text, 75);
-        plainLines.forEach(line => {
-          messageLines.push({
-            text: escapePDF(line),
-            font: fonts.regular,
-            fontSize: 10,
-            color: textColor,
-            lineHeight: 14
-          });
-        });
-      }
-
-      // Calculate total height needed
-      let totalHeight = messageLines.reduce((sum, line) => {
-        return sum + (line.lineHeight || 0);
-      }, 0) + 16; // padding
-
-      // Check if message fits on current page
-      if (currentY - totalHeight < margin) {
-        renderCommands.push({ type: 'page-break' });
-        currentY = pageHeight - margin - 30; // Reset for new page
-
-        // Re-add role label on new page
-        renderCommands.push({
-          type: 'text',
-          x: margin,
-          y: currentY,
-          text: escapePDF(roleLabel),
-          font: fonts.bold,
-          fontSize: 11,
-          color: textColor
-        });
-        currentY -= 18;
-        contentStartY = currentY;
-      }
-
-      // Draw message background bubble
-      const bubbleX = margin - 8;
-      const bubbleY = currentY - totalHeight + 16;
-      const bubbleWidth = contentWidth + 16;
-      const bubbleHeight = totalHeight;
-
-      renderCommands.push({
-        type: 'rect',
-        x: bubbleX,
-        y: bubbleY,
-        width: bubbleWidth,
-        height: bubbleHeight,
-        fillColor: bgColor,
-        radius: 8
-      });
-
-      // Draw message content
-      let lineY = currentY;
-      let inCodeBlock = false;
-      let codeBlockStartY = 0;
-      let codeBlockLines = 0;
-
-      messageLines.forEach(line => {
-        if (line.codeBlockStart) {
-          inCodeBlock = true;
-          codeBlockStartY = lineY;
-          codeBlockLines = 0;
-          return;
-        }
-
-        if (line.codeBlockEnd) {
-          // Draw code block background
-          const codeHeight = codeBlockLines * 11 + 8;
-          renderCommands.push({
-            type: 'rect',
-            x: margin,
-            y: codeBlockStartY - codeHeight + 11,
-            width: contentWidth - 16,
-            height: codeHeight,
-            fillColor: colors.codeBg,
-            radius: 4
-          });
-          inCodeBlock = false;
-          return;
-        }
-
-        if (line.empty) {
-          lineY -= line.lineHeight;
-          return;
-        }
-
-        if (line.isCode) {
-          codeBlockLines++;
-        }
-
-        renderCommands.push({
-          type: 'text',
-          x: margin,
-          y: lineY,
-          text: line.text,
-          font: line.font,
-          fontSize: line.fontSize,
-          color: line.color
-        });
-
-        lineY -= line.lineHeight;
-      });
-
-      currentY = lineY - 15; // Space between messages
-    });
-
-    // Generate PDF pages from render commands
-    const pages = [];
-    let currentPage = {
-      rects: [],
-      lines: [],
-      texts: []
-    };
-
-    renderCommands.forEach(cmd => {
-      if (cmd.type === 'page-break') {
-        if (currentPage.texts.length > 0 || currentPage.rects.length > 0) {
-          pages.push(currentPage);
-        }
-        currentPage = { rects: [], lines: [], texts: [] };
-      } else if (cmd.type === 'rect') {
-        currentPage.rects.push(cmd);
-      } else if (cmd.type === 'line') {
-        currentPage.lines.push(cmd);
-      } else if (cmd.type === 'text') {
-        currentPage.texts.push(cmd);
-      }
-    });
-
-    // Add last page
-    if (currentPage.texts.length > 0 || currentPage.rects.length > 0) {
-      pages.push(currentPage);
-    }
-
-    // Ensure at least one page
-    if (pages.length === 0) {
-      pages.push({ rects: [], lines: [], texts: [{
-        x: margin,
-        y: pageHeight - margin,
-        text: 'No content',
-        font: fonts.regular,
-        fontSize: 12,
-        color: colors.normalText
-      }]});
-    }
-
-    // Build PDF structure
-    const objects = [];
-    let objNum = 1;
-
-    // Object 1: Catalog
-    objects.push({
-      num: objNum++,
-      content: '<</Type /Catalog /Pages 2 0 R>>'
-    });
-
-    // Object 2: Pages (placeholder)
-    const pagesObjNum = objNum++;
-
-    // Object 3-6: Fonts
-    const fontObjNums = {};
-    fontObjNums[fonts.regular] = objNum++;
-    fontObjNums[fonts.bold] = objNum++;
-    fontObjNums[fonts.italic] = objNum++;
-    fontObjNums[fonts.code] = objNum++;
-
-    objects.push({
-      num: fontObjNums[fonts.regular],
-      content: '<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>'
-    });
-    objects.push({
-      num: fontObjNums[fonts.bold],
-      content: '<</Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold>>'
-    });
-    objects.push({
-      num: fontObjNums[fonts.italic],
-      content: '<</Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique>>'
-    });
-    objects.push({
-      num: fontObjNums[fonts.code],
-      content: '<</Type /Font /Subtype /Type1 /BaseFont /Courier>>'
-    });
-
-    // Generate page objects
-    const pageObjectNums = [];
-
-    pages.forEach(page => {
-      const streamLines = [];
-
-      // Draw rectangles (backgrounds)
-      page.rects.forEach(rect => {
-        streamLines.push(`q`); // Save state
-        streamLines.push(`${rect.fillColor[0]} ${rect.fillColor[1]} ${rect.fillColor[2]} rg`); // Fill color
-        streamLines.push(`${rect.x} ${rect.y} ${rect.width} ${rect.height} re`); // Rectangle
-        streamLines.push(`f`); // Fill
-        streamLines.push(`Q`); // Restore state
-      });
-
-      // Draw lines
-      page.lines.forEach(line => {
-        streamLines.push(`q`);
-        streamLines.push(`${line.width} w`); // Line width
-        streamLines.push(`${line.color[0]} ${line.color[1]} ${line.color[2]} RG`); // Stroke color
-        streamLines.push(`${line.x1} ${line.y1} m`); // Move to
-        streamLines.push(`${line.x2} ${line.y2} l`); // Line to
-        streamLines.push(`S`); // Stroke
-        streamLines.push(`Q`);
-      });
-
-      // Draw text
-      streamLines.push('BT');
-      let lastFont = null;
-      let lastSize = null;
-
-      page.texts.forEach(text => {
-        // Set font if changed
-        if (text.font !== lastFont || text.fontSize !== lastSize) {
-          streamLines.push(`/${text.font} ${text.fontSize} Tf`);
-          lastFont = text.font;
-          lastSize = text.fontSize;
-        }
-
-        // Set text color
-        streamLines.push(`${text.color[0]} ${text.color[1]} ${text.color[2]} rg`);
-
-        // Position and draw text
-        streamLines.push(`${text.x} ${text.y} Td`);
-        streamLines.push(`(${text.text}) Tj`);
-        streamLines.push(`${-text.x} ${-text.y} Td`); // Reset to origin
-      });
-
-      streamLines.push('ET');
-
-      const streamContent = streamLines.join('\n');
-
-      // Content stream object
-      const contentObjNum = objNum++;
-      objects.push({
-        num: contentObjNum,
-        content: `<</Length ${streamContent.length}>>\nstream\n${streamContent}\nendstream`
-      });
-
-      // Page object
-      const pageObjNum = objNum++;
-      pageObjectNums.push(pageObjNum);
-
-      const fontRefs = `<</F1 ${fontObjNums[fonts.regular]} 0 R /F2 ${fontObjNums[fonts.bold]} 0 R /F3 ${fontObjNums[fonts.italic]} 0 R /F4 ${fontObjNums[fonts.code]} 0 R>>`;
-
-      objects.push({
-        num: pageObjNum,
-        content: `<</Type /Page /Parent ${pagesObjNum} 0 R /Resources <</Font ${fontRefs}>> /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents ${contentObjNum} 0 R>>`
-      });
-    });
-
-    // Insert Pages object
-    const pageRefs = pageObjectNums.map(num => `${num} 0 R`).join(' ');
-    objects.splice(1, 0, {
-      num: pagesObjNum,
-      content: `<</Type /Pages /Kids [${pageRefs}] /Count ${pageObjectNums.length}>>`
-    });
-
-    // Build PDF file
-    const pdfParts = ['%PDF-1.4'];
-    const xrefOffsets = [0];
-
-    objects.forEach(obj => {
-      xrefOffsets.push(pdfParts.join('\n').length + 1);
-      pdfParts.push(`${obj.num} 0 obj`);
-      pdfParts.push(obj.content);
-      pdfParts.push('endobj');
-    });
-
-    const xrefOffset = pdfParts.join('\n').length + 1;
-    pdfParts.push('xref');
-    pdfParts.push(`0 ${objects.length + 1}`);
-    pdfParts.push('0000000000 65535 f ');
-
-    xrefOffsets.slice(1).forEach(offset => {
-      const paddedOffset = String(offset).padStart(10, '0');
-      pdfParts.push(`${paddedOffset} 00000 n `);
-    });
-
-    pdfParts.push('trailer');
-    pdfParts.push(`<</Size ${objects.length + 1} /Root 1 0 R>>`);
-    pdfParts.push('startxref');
-    pdfParts.push(String(xrefOffset));
-    pdfParts.push('%%EOF');
-
-    return pdfParts.join('\n');
-  },
-
   generateFilename(harvest, format) {
     const title = Utils.safeTitle(harvest.meta.title || 'ChatGPT_Conversation');
     const date = new Date().toISOString().replace(/[:.]/g, '-').replace(/T/, '_').substring(0, 19);
-    const ext = format === 'markdown' ? 'md' : format;
-    return `${title}_${date}.${ext}`;
+    let ext = format;
+    let suffix = '';
+
+    if (format === 'markdown') {
+      ext = 'md';
+    } else if (format === 'dashboard') {
+      ext = 'html';
+      suffix = '_dashboard';
+    }
+
+    return `${title}${suffix}_${date}.${ext}`;
   },
 
   getMimeType(format) {
@@ -3226,9 +2342,684 @@ const ExportManager = {
       markdown: 'text/markdown;charset=utf-8',
       html: 'text/html;charset=utf-8',
       json: 'application/json;charset=utf-8',
-      pdf: 'application/pdf'
+      dashboard: 'text/html;charset=utf-8'
     };
     return types[format] || 'text/plain;charset=utf-8';
+  }
+};
+
+/* ===========================
+   Dashboard Generator
+   =========================== */
+const DashboardGenerator = {
+  generate(messages, meta) {
+    const stats = this.calculateStats(messages, meta);
+    return this.renderHTML(stats, meta);
+  },
+
+  calculateStats(messages, meta) {
+    const stats = {
+      overview: {
+        totalMessages: messages.length,
+        userMessages: 0,
+        assistantMessages: 0,
+        model: meta.model || 'Unknown',
+        exportDate: new Date(meta.exported_at).toLocaleString()
+      },
+      content: {
+        totalWords: 0,
+        userWords: 0,
+        assistantWords: 0,
+        avgMessageLength: 0,
+        codeBlocks: 0,
+        images: 0,
+        tables: 0,
+        lists: 0,
+        links: 0,
+        citations: 0
+      },
+      thinking: {
+        instances: 0,
+        totalSeconds: 0,
+        avgSeconds: 0,
+        percentageWithThinking: 0
+      },
+      codeLanguages: {},
+      messageLength: {
+        longest: 0,
+        shortest: Infinity,
+        longestRole: '',
+        shortestRole: ''
+      },
+      timeline: []
+    };
+
+    messages.forEach((msg, idx) => {
+      // Role counting
+      if (msg.role === 'user') {
+        stats.overview.userMessages++;
+      } else if (msg.role === 'assistant') {
+        stats.overview.assistantMessages++;
+      }
+
+      // Word counting
+      const text = msg.plain?.text || '';
+      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+      stats.content.totalWords += wordCount;
+
+      if (msg.role === 'user') {
+        stats.content.userWords += wordCount;
+      } else if (msg.role === 'assistant') {
+        stats.content.assistantWords += wordCount;
+      }
+
+      // Message length tracking
+      if (wordCount > 0) {
+        if (wordCount > stats.messageLength.longest) {
+          stats.messageLength.longest = wordCount;
+          stats.messageLength.longestRole = msg.role;
+        }
+        if (wordCount < stats.messageLength.shortest) {
+          stats.messageLength.shortest = wordCount;
+          stats.messageLength.shortestRole = msg.role;
+        }
+      }
+
+      // Block analysis
+      (msg.blocks || []).forEach(block => {
+        switch (block.kind) {
+          case 'code':
+            stats.content.codeBlocks++;
+            const lang = block.language || 'unknown';
+            stats.codeLanguages[lang] = (stats.codeLanguages[lang] || 0) + 1;
+            break;
+          case 'image':
+            stats.content.images++;
+            break;
+          case 'table':
+            stats.content.tables++;
+            break;
+          case 'list':
+            stats.content.lists++;
+            break;
+          case 'link':
+            stats.content.links++;
+            break;
+          case 'citation':
+            stats.content.citations++;
+            break;
+        }
+      });
+
+      // Thinking state analysis
+      if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
+        stats.thinking.instances++;
+
+        // Extract thinking time from labels
+        msg.thinking.labels.forEach(label => {
+          const timeMatch = label.text.match(/(\d+)\s*(?:minute|min)s?\s*(?:and\s*)?(\d+)?\s*(?:second|sec)s?|(\d+)\s*(?:second|sec)s?/i);
+          if (timeMatch) {
+            let seconds = 0;
+            if (timeMatch[1] && timeMatch[2]) {
+              // Minutes and seconds
+              seconds = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+            } else if (timeMatch[3]) {
+              // Just seconds
+              seconds = parseInt(timeMatch[3]);
+            } else if (timeMatch[1]) {
+              // Just minutes
+              seconds = parseInt(timeMatch[1]) * 60;
+            }
+            stats.thinking.totalSeconds += seconds;
+          }
+        });
+      }
+
+      // Timeline data
+      stats.timeline.push({
+        index: idx,
+        role: msg.role,
+        words: wordCount,
+        hasCode: (msg.blocks || []).some(b => b.kind === 'code'),
+        hasThinking: !!(msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0)
+      });
+    });
+
+    // Calculate averages and percentages
+    if (stats.overview.totalMessages > 0) {
+      stats.content.avgMessageLength = Math.round(stats.content.totalWords / stats.overview.totalMessages);
+    }
+
+    if (stats.thinking.instances > 0) {
+      stats.thinking.avgSeconds = Math.round(stats.thinking.totalSeconds / stats.thinking.instances);
+      stats.thinking.percentageWithThinking = Math.round((stats.thinking.instances / stats.overview.assistantMessages) * 100);
+    }
+
+    // Handle edge case for shortest message
+    if (stats.messageLength.shortest === Infinity) {
+      stats.messageLength.shortest = 0;
+    }
+
+    return stats;
+  },
+
+  renderHTML(stats, meta) {
+    const isDark = ThemeUtils.isDark();
+    const colors = isDark ? {
+      bg: '#1a1a1a',
+      bgSecondary: '#2a2a2a',
+      text: '#e8e8e8',
+      textSecondary: '#a8a8a8',
+      border: '#404040',
+      accent: '#3b82f6',
+      user: '#2563eb',
+      assistant: '#059669',
+      cardBg: '#2a2a2a',
+      cardHover: '#333333'
+    } : {
+      bg: '#ffffff',
+      bgSecondary: '#f9fafb',
+      text: '#1f2937',
+      textSecondary: '#6b7280',
+      border: '#e5e7eb',
+      accent: '#3b82f6',
+      user: '#3b82f6',
+      assistant: '#10b981',
+      cardBg: '#ffffff',
+      cardHover: '#f3f4f6'
+    };
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <title>Dashboard - ${Utils.escapeHTML(meta.title)}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: ${colors.bg};
+      color: ${colors.text};
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid ${colors.border};
+    }
+
+    .header h1 {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: ${colors.accent};
+    }
+
+    .header .subtitle {
+      font-size: 18px;
+      color: ${colors.textSecondary};
+      margin-bottom: 8px;
+    }
+
+    .header .meta {
+      font-size: 14px;
+      color: ${colors.textSecondary};
+    }
+
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title .icon {
+      font-size: 28px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: ${colors.cardBg};
+      border: 1px solid ${colors.border};
+      border-radius: 12px;
+      padding: 24px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      background: ${colors.cardHover};
+    }
+
+    .card-title {
+      font-size: 14px;
+      color: ${colors.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .card-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: ${colors.text};
+      margin-bottom: 4px;
+    }
+
+    .card-subtitle {
+      font-size: 14px;
+      color: ${colors.textSecondary};
+    }
+
+    .chart-container {
+      background: ${colors.cardBg};
+      border: 1px solid ${colors.border};
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .chart-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: ${colors.text};
+    }
+
+    .bar-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .bar-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .bar-label {
+      min-width: 120px;
+      font-size: 14px;
+      color: ${colors.text};
+      font-weight: 500;
+    }
+
+    .bar-container {
+      flex: 1;
+      height: 32px;
+      background: ${colors.bgSecondary};
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.8s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 12px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .bar-value {
+      min-width: 60px;
+      text-align: right;
+      font-size: 14px;
+      color: ${colors.text};
+      font-weight: 600;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-item {
+      background: ${colors.bgSecondary};
+      padding: 16px;
+      border-radius: 8px;
+      border-left: 4px solid ${colors.accent};
+    }
+
+    .stat-item .label {
+      font-size: 12px;
+      color: ${colors.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .stat-item .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: ${colors.text};
+    }
+
+    .languages-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .language-tag {
+      background: ${colors.bgSecondary};
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border: 1px solid ${colors.border};
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .language-tag .count {
+      background: ${colors.accent};
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .timeline-viz {
+      height: 120px;
+      background: ${colors.bgSecondary};
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      overflow-x: auto;
+    }
+
+    .timeline-bar {
+      flex: 1;
+      min-width: 8px;
+      border-radius: 2px;
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+
+    .timeline-bar:hover {
+      transform: scaleY(1.1);
+      opacity: 0.8;
+    }
+
+    .timeline-bar.user {
+      background: ${colors.user};
+    }
+
+    .timeline-bar.assistant {
+      background: ${colors.assistant};
+    }
+
+    .legend {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid ${colors.border};
+      color: ${colors.textSecondary};
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .header h1 {
+        font-size: 28px;
+      }
+
+      .section-title {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Conversation Dashboard</h1>
+      <div class="subtitle">${Utils.escapeHTML(meta.title)}</div>
+      <div class="meta">
+        <strong>Model:</strong> ${Utils.escapeHTML(stats.overview.model)} |
+        <strong>Exported:</strong> ${Utils.escapeHTML(stats.overview.exportDate)}
+      </div>
+    </div>
+
+    <!-- Overview Section -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">💬</span> Conversation Overview</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Total Messages</div>
+          <div class="card-value">${stats.overview.totalMessages}</div>
+          <div class="card-subtitle">Complete conversation</div>
+        </div>
+        <div class="card">
+          <div class="card-title">User Messages</div>
+          <div class="card-value" style="color: ${colors.user}">${stats.overview.userMessages}</div>
+          <div class="card-subtitle">${this.formatPercentage(stats.overview.userMessages, stats.overview.totalMessages)}% of conversation</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Assistant Messages</div>
+          <div class="card-value" style="color: ${colors.assistant}">${stats.overview.assistantMessages}</div>
+          <div class="card-subtitle">${this.formatPercentage(stats.overview.assistantMessages, stats.overview.totalMessages)}% of conversation</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Statistics -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📝</span> Content Statistics</h2>
+      <div class="chart-container">
+        <div class="chart-title">Word Count Comparison</div>
+        <div class="bar-chart">
+          <div class="bar-item">
+            <div class="bar-label">User</div>
+            <div class="bar-container">
+              <div class="bar-fill" style="width: ${this.formatPercentage(stats.content.userWords, stats.content.totalWords)}%; background: ${colors.user};">
+                ${stats.content.userWords > 0 ? stats.content.userWords : ''}
+              </div>
+            </div>
+            <div class="bar-value">${stats.content.userWords}</div>
+          </div>
+          <div class="bar-item">
+            <div class="bar-label">Assistant</div>
+            <div class="bar-container">
+              <div class="bar-fill" style="width: ${this.formatPercentage(stats.content.assistantWords, stats.content.totalWords)}%; background: ${colors.assistant};">
+                ${stats.content.assistantWords > 0 ? stats.content.assistantWords : ''}
+              </div>
+            </div>
+            <div class="bar-value">${stats.content.assistantWords}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="label">Total Words</div>
+          <div class="value">${stats.content.totalWords.toLocaleString()}</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Avg Message Length</div>
+          <div class="value">${stats.content.avgMessageLength} words</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Longest Message</div>
+          <div class="value">${stats.messageLength.longest} words</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Code Blocks</div>
+          <div class="value">${stats.content.codeBlocks}</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Images</div>
+          <div class="value">${stats.content.images}</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Tables</div>
+          <div class="value">${stats.content.tables}</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Lists</div>
+          <div class="value">${stats.content.lists}</div>
+        </div>
+        <div class="stat-item">
+          <div class="label">Links & Citations</div>
+          <div class="value">${stats.content.links + stats.content.citations}</div>
+        </div>
+      </div>
+    </div>
+
+    ${stats.content.codeBlocks > 0 ? `
+    <!-- Code Languages -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">💻</span> Code Languages</h2>
+      <div class="chart-container">
+        <div class="languages-list">
+          ${Object.entries(stats.codeLanguages)
+            .sort((a, b) => b[1] - a[1])
+            .map(([lang, count]) => `
+              <div class="language-tag">
+                <span>${Utils.escapeHTML(lang)}</span>
+                <span class="count">${count}</span>
+              </div>
+            `).join('')}
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    ${stats.thinking.instances > 0 ? `
+    <!-- Thinking State Analysis -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">🧠</span> Thinking State Analysis</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Thinking Instances</div>
+          <div class="card-value">${stats.thinking.instances}</div>
+          <div class="card-subtitle">${stats.thinking.percentageWithThinking}% of assistant messages</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Thinking Time</div>
+          <div class="card-value">${this.formatTime(stats.thinking.totalSeconds)}</div>
+          <div class="card-subtitle">${stats.thinking.totalSeconds} seconds</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Avg Thinking Time</div>
+          <div class="card-value">${this.formatTime(stats.thinking.avgSeconds)}</div>
+          <div class="card-subtitle">Per thinking instance</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- Conversation Timeline -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📈</span> Conversation Flow</h2>
+      <div class="chart-container">
+        <div class="chart-title">Message Timeline</div>
+        <div class="timeline-viz">
+          ${stats.timeline.map((item, idx) => {
+            const maxWords = Math.max(...stats.timeline.map(t => t.words));
+            const height = maxWords > 0 ? Math.max(20, (item.words / maxWords) * 100) : 20;
+            const title = `Message ${idx + 1}: ${item.role} (${item.words} words)${item.hasCode ? ' 💻' : ''}${item.hasThinking ? ' 🧠' : ''}`;
+            return `<div class="timeline-bar ${item.role}" style="height: ${height}%" title="${title}"></div>`;
+          }).join('')}
+        </div>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: ${colors.user}"></div>
+            <span>User</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: ${colors.assistant}"></div>
+            <span>Assistant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Generated by <strong>Capsula v${CFG.version}</strong> |
+      <a href="https://github.com/sevenevesai/capsula" style="color: ${colors.accent}; text-decoration: none;">GitHub</a>
+    </div>
+  </div>
+</body>
+</html>`;
+  },
+
+  formatPercentage(value, total) {
+    if (total === 0) return 0;
+    return Math.round((value / total) * 100);
+  },
+
+  formatTime(seconds) {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
   }
 };
 
@@ -4004,7 +3795,6 @@ const ContextMenu = {
       <div class="menu-item" data-action="export-markdown">Export as Markdown</div>
       <div class="menu-item" data-action="export-html">Export as HTML</div>
       <div class="menu-item" data-action="export-json">Export as JSON</div>
-      <div class="menu-item" data-action="export-pdf">Export as PDF</div>
     `;
 
     document.body.appendChild(menu);
@@ -4101,22 +3891,8 @@ const ContextMenu = {
 </html>`;
     } else if (format === 'json') {
       return JSON.stringify({ blocks, timestamp: new Date().toISOString() }, null, 2);
-    } else if (format === 'pdf') {
-      // Create a minimal message structure for PDF export
-      const singleMessage = {
-        role: 'assistant',
-        blocks: blocks,
-        index: 0
-      };
-      const meta = {
-        title: 'ChatGPT Answer',
-        exported_at: new Date().toISOString(),
-        model: '',
-        url: window.location.href
-      };
-      return ExportManager.toPDF([singleMessage], meta);
     }
-
+    
     return ExportManager.blocksToMarkdown(blocks);
   }
 };
