@@ -68,10 +68,29 @@
     * Added comprehensive false-positive filters
     * Added console logging for debugging
 
+- **Enhancement**: Smart Code Language Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 4352-4677 (detectCodeLanguage), 4699-4702 (integration)
+  - Problem: Code blocks always showing as "unknown" in dashboard
+    * ChatGPT doesn't always add `language-*` classes to code blocks
+    * Need accurate detection without misclassification
+  - Solution: Comprehensive pattern-based language detection:
+    * Detects 20+ languages: Python, Java, JS, TS, C#, Go, Rust, Ruby, Swift, Kotlin, etc.
+    * JSON, XML, HTML, CSS, SQL, Bash, PHP, C/C++, Markdown, YAML
+    * Scoring system with multiple patterns per language (confidence threshold)
+    * Returns empty string if uncertain (precision over recall)
+    * Language-specific identifiers:
+      - Python: def/class, no semicolons, imports
+      - TypeScript: interface/type, type annotations
+      - JavaScript: const/let/var, arrow functions
+      - Java: public class, System.out, types
+      - C#: namespace, using System, properties
+      - And more...
+    * Integrated as fallback in `extractBlocks()` when className detection fails
+
 ### 🔄 PENDING TASKS
 
 - **Testing**: Verify all fixes work with actual ChatGPT exports
-- **Code Block Count Investigation**: Debug why code blocks may be undercounted
 
 ### 📝 Testing Status
 
