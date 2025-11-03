@@ -4690,7 +4690,7 @@ const Harvester = {
 
       const tag = node.tagName.toLowerCase();
 
-      // Code blocks
+      // Code blocks - Handle both <pre><code> and ChatGPT's div-based structure
       if (tag === 'pre') {
         const code = node.querySelector('code') || node;
         let language = (code.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
@@ -4704,6 +4704,46 @@ const Harvester = {
         if (text.trim()) {
           blocks.push({ kind: 'code', language, text });
           return true;
+        }
+      }
+
+      // ChatGPT's modern code block structure (div-based with header)
+      // Structure: <div class="contain-inline-size..."><div class="flex...">language</div>...<code>...</code></div>
+      if (tag === 'div' && node.classList.contains('contain-inline-size')) {
+        // Look for code element (might or might not have language- class)
+        const codeEl = node.querySelector('code');
+        if (codeEl) {
+          let language = '';
+
+          // Priority 1: Check ChatGPT's header div for language label (most reliable)
+          // This is what ChatGPT displays to users, so it's the ground truth
+          const headerDiv = node.querySelector('div.flex.items-center[class*="rounded-t"]');
+          if (headerDiv) {
+            const labelText = headerDiv.textContent?.trim() || '';
+            // Validate it looks like a language name (short, no spaces or only "Copy code")
+            // Filter out UI text like "Copy code"
+            const cleanLabel = labelText.replace(/copy code/gi, '').trim();
+            if (cleanLabel && cleanLabel.length < 20 && /^[a-z0-9+#.-]+$/i.test(cleanLabel)) {
+              language = cleanLabel.toLowerCase();
+            }
+          }
+
+          // Priority 2: Check className if no header label found
+          if (!language) {
+            language = (codeEl.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
+          }
+
+          const text = codeEl.textContent || '';
+
+          // Priority 3: Smart detection if still no language
+          if (!language && text.trim()) {
+            language = this.detectCodeLanguage(text);
+          }
+
+          if (text.trim()) {
+            blocks.push({ kind: 'code', language, text });
+            return true;
+          }
         }
       }
       
