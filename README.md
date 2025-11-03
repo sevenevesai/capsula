@@ -8,13 +8,14 @@ It works directly inside ChatGPT (and later, other AI platforms) with advanced f
 ## Features
 
 ### Core Export Options
-- **Multiple formats**  
-  - **Markdown (.md):** clean, readable, ideal for notes  
-  - **HTML (.html):** styled web page with CSP headers  
-  - **JSON (.json):** structured data with full metadata  
-  - **Clipboard copy:** quick one-click copy in any format  
-  - **Right-click export:** export any single response  
-  - **Download to file:** auto-named with timestamps  
+- **Multiple formats**
+  - **Markdown (.md):** clean, readable, ideal for notes
+  - **HTML (.html):** styled web page with CSP headers
+  - **JSON (.json):** structured data with full metadata
+  - **Dashboard (.html):** interactive conversation analytics and statistics
+  - **Clipboard copy:** quick one-click copy in any format
+  - **Right-click export:** export any single response
+  - **Download to file:** auto-named with timestamps
 
 ### Advanced Selection & Filtering
 - **Interactive timeline**  
@@ -39,13 +40,36 @@ It works directly inside ChatGPT (and later, other AI platforms) with advanced f
 - Auto light/dark theme support  
 
 ### Advanced Features
-- **Thinking state detection** — labels o1 “thinking” phases  
-- **Smart content extraction**  
-  - Preserves headings, lists, code, tables, blockquotes  
-  - Handles images with alt text  
-  - Maintains links and math equations  
-- **SPA navigation support** — works across ChatGPT’s single-page interface  
-- **Performance optimized** — efficient DOM handling & debounced updates  
+- **Enhanced thinking detection**
+  - Multi-stage thinking sequences with time tracking
+  - Accurate time parsing (handles "5s", "1m 30s", "a few seconds", etc.)
+  - Displays thinking labels in correct position (after role headers)
+  - Total thinking time calculations in dashboard
+- **Smart code language detection**
+  - Detects 20+ languages: Python, Java, JavaScript, TypeScript, C#, Go, Rust, Ruby, Swift, Kotlin, and more
+  - Uses ChatGPT's own language labels when available
+  - Pattern-based fallback for unlabeled code blocks
+  - Accurate dashboard metrics by language
+- **Canvas artifact detection**
+  - Identifies ChatGPT canvas documents
+  - Marks canvas artifacts in exports with title and type
+  - Dashboard analytics for canvas usage
+- **File attachment detection**
+  - Detects uploaded files in user messages
+  - Categorizes by type (images, PDFs, documents, code, archives)
+  - File metadata in exports and dashboard
+- **Interactive dashboard**
+  - Conversation analytics and statistics
+  - Code language breakdown
+  - Thinking metrics (time, stages, average)
+  - Canvas and attachment summaries
+  - Message distribution charts
+- **Smart content extraction**
+  - Preserves headings, lists, code, tables, blockquotes
+  - Handles images with alt text
+  - Maintains links and math equations
+- **SPA navigation support** — works across ChatGPT's single-page interface
+- **Performance optimized** — efficient DOM handling & debounced updates
 
 ---
 
@@ -99,23 +123,28 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 
 ## Export Formats
 
-- **Markdown (.md)**  
-  Clean, human-readable, preserves formatting. Great for notes, Obsidian, GitHub, etc.
+- **Markdown (.md)**
+  Clean, human-readable, preserves formatting. Great for notes, Obsidian, GitHub, etc. Includes thinking labels, canvas markers, and file attachments.
 
-- **HTML (.html)**  
-  Styled standalone webpage. Includes CSP headers, light/dark support, no external resources.
+- **HTML (.html)**
+  Styled standalone webpage. Includes CSP headers, light/dark support, no external resources. Beautifully formatted with syntax highlighting.
 
-- **JSON (.json)**  
-  Complete structured data with metadata (title, model, timestamp). Ideal for programmatic analysis.
+- **JSON (.json)**
+  Complete structured data with metadata (title, model, timestamp, thinking time, canvas info, attachments). Ideal for programmatic analysis.
+
+- **Dashboard (.html)**
+  Interactive analytics page with conversation statistics, code language breakdown, thinking metrics, canvas/attachment summaries, and visual charts.
 
 ---
 
 ## Technical Details
-- **Version:** 1.0.0
-- **Platform:** Firefox (Manifest V3)  
-- **Implementation:** Content script only (no background process)  
-- **Dependencies:** None (self-contained)  
-- **Font:** Matches ChatGPT’s font stack automatically  
+- **Version:** 1.1.0
+- **Platform:** Firefox (Manifest V3)
+- **Implementation:** Content script only (no background process)
+- **Dependencies:** None (self-contained)
+- **Font:** Matches ChatGPT's font stack automatically
+- **Code Detection:** Supports 20+ programming languages
+- **Metadata:** Thinking states, canvas artifacts, file attachments
 
 ---
 
@@ -170,13 +199,25 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 ---
 
 ## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
+
+### v1.1.0 (Latest)
+- **Dashboard export format** with conversation analytics
+- **Enhanced thinking detection** with multi-stage support and accurate time parsing
+- **Smart code language detection** (20+ languages)
+- **Canvas artifact detection** and metadata
+- **File attachment detection** and categorization
+- **Improved export formats** with thinking labels, canvas markers, and attachment info
+- Code cleanup and production optimizations
+
 ### v1.0.0
-- Added thinking state detection for o1 models  
-- Improved timeline with scroll-synced highlights  
-- Enhanced security with CSP headers  
-- Added resize handles for range selection  
-- Optimized performance with debouncing  
-- Improved SPA navigation handling  
+- Initial release
+- Multiple export formats (Markdown, HTML, JSON)
+- Interactive timeline with range selection
+- Content filtering (Assistant Only, Code, Tables, Lists)
+- Thinking state detection for o1 models
+- Security features with CSP headers
 
 ---
 

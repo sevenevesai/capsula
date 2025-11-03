@@ -4006,8 +4006,6 @@ const Harvester = {
       return true;
     });
 
-    console.log('[Thinking Detection] Scanning', uniqueDivs.length, 'candidate divs in container');
-
     uniqueDivs.forEach((thinkingDiv) => {
       // Search ALL spans - be comprehensive
       const allSpans = thinkingDiv.querySelectorAll('span');
@@ -4046,8 +4044,6 @@ const Harvester = {
             seconds: this.parseThinkingTime(text)
           });
           seenTexts.add(text);
-
-          console.log(`[Thinking Detection] Found #${labels.length}:`, text, `(${matchedType}, ${this.parseThinkingTime(text)}s)`);
         }
       });
 
@@ -4068,8 +4064,6 @@ const Harvester = {
         }
       }
     });
-
-    console.log('[Thinking Detection] Total labels found:', labels.length, 'Total time:', Math.round(labels.reduce((sum, label) => sum + (label.seconds || 0), 0)), 's');
 
     // TASK 6: Calculate total thinking time
     const totalSeconds = labels.reduce((sum, label) => sum + (label.seconds || 0), 0);
@@ -5353,7 +5347,6 @@ const App = {
   async openExportPanel() {
     // Prevent multiple concurrent requests
     if (this.isProcessing) {
-      console.log('[ChatGPT Export] Already processing, ignoring duplicate request');
       return;
     }
 
@@ -5414,10 +5407,8 @@ const App = {
       `;
       document.head.appendChild(style);
     }
-    
+
     this.setupRouteWatcher();
-    
-    console.log(`[ChatGPT Export v${CFG.version}] Extension initialized (Enhanced)`);
   },
 
   setupRouteWatcher() {
