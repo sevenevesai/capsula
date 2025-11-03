@@ -2521,28 +2521,70 @@ const ExportManager = {
     
     messages.forEach(msg => {
       const roleLabel = msg.role === 'user' ? 'You' : 'ChatGPT';
-      
-      // Add thinking labels
-      if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-        msg.thinking.labels.forEach(label => {
-          md += `*${label.text}*\n\n`;
-        });
+
+      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
+      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
+      const hasContent = hasBlocks || hasPlain;
+
+      // TASK 6 FIX: Always add role header first, then thinking/metadata
+      const hasThinking = msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0;
+      const hasCanvas = msg.isCanvas;
+      const hasAttachment = msg.hasAttachment;
+
+      // Skip completely empty messages (no content, no thinking, no canvas, no attachment)
+      if (!hasContent && !hasThinking && !hasCanvas && !hasAttachment) {
+        return;
+      }
+
+      // Add role header
+      md += `## ${roleLabel}\n\n`;
+
+      // Add thinking labels (AFTER role header, only for assistant)
+      if (hasThinking && msg.role === 'assistant') {
+        if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+          // Multi-stage thinking: show all stages
+          msg.thinkingSequence.forEach(think => {
+            md += `*${think.text}*\n\n`;
+          });
+        } else {
+          // Single thinking label
+          msg.thinking.labels.forEach(label => {
+            md += `*${label.text}*\n\n`;
+          });
+        }
         if (msg.thinking.expandable) {
           md += `*[Expandable content available]*\n\n`;
         }
       }
-      
-      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
-      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
-      const hasContent = hasBlocks || hasPlain;
-      
+
+      // Add file attachment marker (before content, only for user)
+      if (hasAttachment && msg.role === 'user') {
+        md += `📎 **Attached**: ${msg.attachment.fileName}`;
+        if (msg.attachment.fileType) {
+          md += ` (${msg.attachment.fileType})`;
+        }
+        md += `\n\n`;
+      }
+
+      // Add canvas marker (before content, only for assistant)
+      if (hasCanvas && msg.role === 'assistant') {
+        md += `📋 **Canvas Artifact**: ${msg.canvasTitle}`;
+        if (msg.canvasType && msg.canvasType !== 'unknown') {
+          md += ` (${msg.canvasType})`;
+        }
+        md += `\n\n---\n\n`;
+      }
+
+      // Add message content
       if (hasContent && !msg.isThinking) {
-        md += `## ${roleLabel}\n\n`;
         if (hasBlocks) {
           md += this.blocksToMarkdown(msg.blocks) + '\n';
         } else if (hasPlain) {
           md += msg.plain.text + '\n\n';
         }
+      } else if (msg.isThinking) {
+        // Thinking-only message (e.g., "Stopped thinking" with no response)
+        md += `*[No response generated]*\n\n`;
       }
     });
     
@@ -2642,6 +2684,39 @@ const ExportManager = {
       margin-bottom: 4px;
       font-style: italic;
     }
+    .thinking-sequence {
+      margin-bottom: 8px;
+    }
+    .thinking-stage-1, .thinking-stage-2, .thinking-stage-3,
+    .thinking-stage-4, .thinking-stage-5 {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 2px;
+      font-style: italic;
+    }
+    .canvas-marker {
+      background: #dbeafe;
+      border-left: 3px solid #3b82f6;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .file-attachment {
+      background: #fef3c7;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-type {
+      color: #92400e;
+      font-size: 12px;
+    }
     .bubble {
       max-width: 70%;
       padding: 12px 16px;
@@ -2702,6 +2777,9 @@ const ExportManager = {
       body { background: #111827; color: #f9fafb; }
       .meta { background: #374151; }
       .message.assistant .bubble { background: #374151; color: #f9fafb; }
+      .canvas-marker { background: #1e3a8a; border-left-color: #60a5fa; }
+      .file-attachment { background: #78350f; border-left-color: #fbbf24; }
+      .file-type { color: #fde68a; }
     }
   </style>
 </head>
@@ -2714,27 +2792,75 @@ const ExportManager = {
   </div>
   
   ${messages.map(msg => {
-    let thinkingHtml = '';
+    // TASK 6 FIX: Enhanced HTML generation with canvas and attachment markers
+    let metadataHtml = '';
+
+    // Thinking labels (multi-stage or single)
     if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-      thinkingHtml = msg.thinking.labels.map(label =>
-        `<div class="thinking-label">${Utils.escapeHtml(label.text)}</div>`
-      ).join('');
-      // Note: expandable content indicator removed - it was non-functional
+      if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+        // Multi-stage thinking
+        metadataHtml += '<div class="thinking-sequence">';
+        msg.thinkingSequence.forEach((think, idx) => {
+          metadataHtml += `<div class="thinking-label thinking-stage-${idx + 1}">🤔 ${Utils.escapeHtml(think.text)}</div>`;
+        });
+        metadataHtml += '</div>';
+      } else {
+        // Single thinking label
+        metadataHtml += msg.thinking.labels.map(label =>
+          `<div class="thinking-label">🤔 ${Utils.escapeHtml(label.text)}</div>`
+        ).join('');
+      }
+      if (msg.thinking.expandable) {
+        metadataHtml += '<div class="thinking-label">[Expandable content available]</div>';
+      }
     }
-    
+
+    // File attachment marker (user messages only)
+    if (msg.hasAttachment && msg.role === 'user') {
+      const icons = {
+        image: '🖼️',
+        pdf: '📄',
+        archive: '📦',
+        document: '📝',
+        code: '💻',
+        file: '📎'
+      };
+      const icon = icons[msg.attachment.category] || '📎';
+      metadataHtml += `<div class="file-attachment">
+        <span>${icon}</span>
+        <div>
+          <strong>Attached:</strong> ${Utils.escapeHtml(msg.attachment.fileName)}
+          ${msg.attachment.fileType ? `<span class="file-type">(${Utils.escapeHtml(msg.attachment.fileType)})</span>` : ''}
+        </div>
+      </div>`;
+    }
+
+    // Canvas artifact marker (assistant messages only)
+    if (msg.isCanvas && msg.role === 'assistant') {
+      metadataHtml += `<div class="canvas-marker">
+        📋 <strong>Canvas Artifact:</strong> ${Utils.escapeHtml(msg.canvasTitle)}
+        ${msg.canvasType && msg.canvasType !== 'unknown' ? `<span style="font-size: 12px; color: #1e40af;">(${msg.canvasType})</span>` : ''}
+      </div>`;
+    }
+
     const bubbleContent = MessageFormatter.format(msg);
     const hasBubbleContent = bubbleContent && bubbleContent.trim().length > 0;
-    
-    if (!hasBubbleContent && !thinkingHtml) return '';
-    
+
+    // Skip completely empty messages
+    if (!hasBubbleContent && !metadataHtml) return '';
+
     return `
     <div class="message ${msg.role}">
       <div style="max-width: 70%;">
-        ${thinkingHtml}
+        ${metadataHtml}
         ${hasBubbleContent ? `
         <div class="bubble">
           <div class="role">${msg.role === 'user' ? 'You' : 'ChatGPT'}</div>
           ${bubbleContent}
+        </div>` : msg.isThinking ? `
+        <div class="bubble">
+          <div class="role">ChatGPT</div>
+          <em>[No response generated]</em>
         </div>` : ''}
       </div>
     </div>
@@ -2823,7 +2949,28 @@ const DashboardGenerator = {
         instances: 0,
         totalSeconds: 0,
         avgSeconds: 0,
-        percentageWithThinking: 0
+        percentageWithThinking: 0,
+        multiStage: 0,  // TASK 7: Multi-stage thinking count
+        totalStages: 0  // TASK 7: Total thinking stages
+      },
+      // TASK 7: Canvas artifacts
+      canvas: {
+        total: 0,
+        documents: 0,
+        code: 0,
+        unknown: 0
+      },
+      // TASK 7: File attachments
+      attachments: {
+        total: 0,
+        byType: {
+          image: 0,
+          pdf: 0,
+          archive: 0,
+          document: 0,
+          code: 0,
+          file: 0
+        }
       },
       codeLanguages: {},
       messageLength: {
@@ -2892,28 +3039,43 @@ const DashboardGenerator = {
         }
       });
 
-      // Thinking state analysis
+      // TASK 7: Thinking state analysis (improved)
       if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
         stats.thinking.instances++;
 
-        // Extract thinking time from labels
-        msg.thinking.labels.forEach(label => {
-          const timeMatch = label.text.match(/(\d+)\s*(?:minute|min)s?\s*(?:and\s*)?(\d+)?\s*(?:second|sec)s?|(\d+)\s*(?:second|sec)s?/i);
-          if (timeMatch) {
-            let seconds = 0;
-            if (timeMatch[1] && timeMatch[2]) {
-              // Minutes and seconds
-              seconds = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
-            } else if (timeMatch[3]) {
-              // Just seconds
-              seconds = parseInt(timeMatch[3]);
-            } else if (timeMatch[1]) {
-              // Just minutes
-              seconds = parseInt(timeMatch[1]) * 60;
-            }
-            stats.thinking.totalSeconds += seconds;
-          }
-        });
+        // Use pre-calculated totalSeconds from message (more reliable)
+        if (msg.thinking.totalSeconds) {
+          stats.thinking.totalSeconds += msg.thinking.totalSeconds;
+        }
+
+        // Count multi-stage thinking
+        if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+          stats.thinking.multiStage++;
+          stats.thinking.totalStages += msg.thinkingSequence.length;
+        } else {
+          stats.thinking.totalStages += msg.thinking.labels.length;
+        }
+      }
+
+      // TASK 7: Canvas artifact analysis
+      if (msg.isCanvas) {
+        stats.canvas.total++;
+        if (msg.canvasType === 'document') {
+          stats.canvas.documents++;
+        } else if (msg.canvasType === 'code') {
+          stats.canvas.code++;
+        } else {
+          stats.canvas.unknown++;
+        }
+      }
+
+      // TASK 7: File attachment analysis
+      if (msg.hasAttachment && msg.attachment) {
+        stats.attachments.total++;
+        const category = msg.attachment.category || 'file';
+        if (stats.attachments.byType[category] !== undefined) {
+          stats.attachments.byType[category]++;
+        }
       }
 
       // Timeline data
@@ -3410,6 +3572,81 @@ const DashboardGenerator = {
           <div class="card-value">${this.formatTime(stats.thinking.avgSeconds)}</div>
           <div class="card-subtitle">Per thinking instance</div>
         </div>
+        ${stats.thinking.multiStage > 0 ? `
+        <div class="card">
+          <div class="card-title">Multi-Stage Thinking</div>
+          <div class="card-value">${stats.thinking.multiStage}</div>
+          <div class="card-subtitle">${stats.thinking.totalStages} total stages</div>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+    ` : ''}
+
+    ${stats.canvas.total > 0 ? `
+    <!-- Canvas Artifacts -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📋</span> Canvas Artifacts</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Total Artifacts</div>
+          <div class="card-value">${stats.canvas.total}</div>
+          <div class="card-subtitle">Generated canvases</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Documents</div>
+          <div class="card-value">${stats.canvas.documents}</div>
+          <div class="card-subtitle">Text documents</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Code Canvases</div>
+          <div class="card-value">${stats.canvas.code}</div>
+          <div class="card-subtitle">Code artifacts</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    ${stats.attachments.total > 0 ? `
+    <!-- File Attachments -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📎</span> File Attachments</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Total Attachments</div>
+          <div class="card-value">${stats.attachments.total}</div>
+          <div class="card-subtitle">Files uploaded</div>
+        </div>
+        ${stats.attachments.byType.image > 0 ? `
+        <div class="card">
+          <div class="card-title">Images</div>
+          <div class="card-value">🖼️ ${stats.attachments.byType.image}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.pdf > 0 ? `
+        <div class="card">
+          <div class="card-title">PDFs</div>
+          <div class="card-value">📄 ${stats.attachments.byType.pdf}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.archive > 0 ? `
+        <div class="card">
+          <div class="card-title">Archives</div>
+          <div class="card-value">📦 ${stats.attachments.byType.archive}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.document > 0 ? `
+        <div class="card">
+          <div class="card-title">Documents</div>
+          <div class="card-value">📝 ${stats.attachments.byType.document}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.code > 0 ? `
+        <div class="card">
+          <div class="card-title">Code Files</div>
+          <div class="card-value">💻 ${stats.attachments.byType.code}</div>
+        </div>
+        ` : ''}
       </div>
     </div>
     ` : ''}
@@ -3693,6 +3930,37 @@ const Harvester = {
     });
   },
 
+  parseThinkingTime(text) {
+    // TASK 6: Parse thinking time from text patterns
+    // Returns time in seconds, or 0 if no time found
+    if (!text) return 0;
+
+    // Pattern 1: "Xm Ys" or "X minutes Y seconds"
+    const minSecMatch = text.match(/(\d+)\s*(?:m|min|minutes?)\s+(?:and\s+)?(\d+)\s*(?:s|sec|seconds?)/i);
+    if (minSecMatch) {
+      return parseInt(minSecMatch[1]) * 60 + parseInt(minSecMatch[2]);
+    }
+
+    // Pattern 2: "Xs" or "X seconds" (only)
+    const secMatch = text.match(/(\d+)\s*(?:s|sec|seconds?)(?!\s*\d)/i);
+    if (secMatch) {
+      return parseInt(secMatch[1]);
+    }
+
+    // Pattern 3: "Xm" or "X minutes" (only)
+    const minMatch = text.match(/(\d+)\s*(?:m|min|minutes?)(?!\s*\d)/i);
+    if (minMatch) {
+      return parseInt(minMatch[1]) * 60;
+    }
+
+    // Pattern 4: "a few seconds" / "a moment" / "briefly"
+    if (/few|moment|brief/i.test(text)) {
+      return 3; // Estimate 3 seconds
+    }
+
+    return 0;
+  },
+
   detectThinkingStates(container) {
     const labels = [];
     const expanderSelectors = [];
@@ -3749,7 +4017,8 @@ const Harvester = {
           labels.push({
             text: text,
             order: labels.length,  // Preserve sequence for multi-stage thinking
-            type: matchedType
+            type: matchedType,
+            seconds: this.parseThinkingTime(text)  // TASK 6: Add time parsing
           });
           seenTexts.add(text);
         }
@@ -3777,8 +4046,12 @@ const Harvester = {
       }
     });
 
+    // TASK 6: Calculate total thinking time
+    const totalSeconds = labels.reduce((sum, label) => sum + (label.seconds || 0), 0);
+
     return {
       labels: labels,  // Array preserving all thinking stages in order
+      totalSeconds: totalSeconds,  // Total time in seconds
       expandable: expanderSelectors.length > 0,
       expanderSelectors: expanderSelectors.length > 0 ? expanderSelectors : undefined
     };
