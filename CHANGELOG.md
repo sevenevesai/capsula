@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2025-01-XX
+
+### Fixed
+- Added required `data_collection_permissions` property to manifest.json for Firefox Add-ons store compliance
+- Declared no telemetry or crash report collection (confirming existing privacy-first design)
+
+### Technical
+- This is a metadata-only release to meet Firefox Add-ons store requirements
+- No functional changes to extension behavior
+- All code remains identical to v1.1.0
+
+---
+
 ## [1.1.0] - 2025-01-XX
 
 ### Added

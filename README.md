@@ -138,7 +138,7 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 ---
 
 ## Technical Details
-- **Version:** 1.1.0
+- **Version:** 1.1.1
 - **Platform:** Firefox (Manifest V3)
 - **Implementation:** Content script only (no background process)
 - **Dependencies:** None (self-contained)
@@ -202,7 +202,11 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### v1.1.0 (Latest)
+### v1.1.1 (Latest)
+- Added Firefox Add-ons store compliance metadata
+- No functional changes
+
+### v1.1.0
 - **Dashboard export format** with conversation analytics
 - **Enhanced thinking detection** with multi-stage support and accurate time parsing
 - **Smart code language detection** (20+ languages)
