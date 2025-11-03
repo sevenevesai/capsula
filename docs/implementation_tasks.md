@@ -70,23 +70,27 @@
 
 - **Enhancement**: Smart Code Language Detection ✓
   - Status: COMPLETE (implemented 2025-11-03)
-  - Location: `content.js` lines 4352-4677 (detectCodeLanguage), 4699-4702 (integration)
+  - Location: `content.js` lines 4352-4677 (detectCodeLanguage), 4693-4748 (integration)
   - Problem: Code blocks always showing as "unknown" in dashboard
     * ChatGPT doesn't always add `language-*` classes to code blocks
     * Need accurate detection without misclassification
-  - Solution: Comprehensive pattern-based language detection:
-    * Detects 20+ languages: Python, Java, JS, TS, C#, Go, Rust, Ruby, Swift, Kotlin, etc.
-    * JSON, XML, HTML, CSS, SQL, Bash, PHP, C/C++, Markdown, YAML
-    * Scoring system with multiple patterns per language (confidence threshold)
-    * Returns empty string if uncertain (precision over recall)
-    * Language-specific identifiers:
-      - Python: def/class, no semicolons, imports
-      - TypeScript: interface/type, type annotations
-      - JavaScript: const/let/var, arrow functions
-      - Java: public class, System.out, types
-      - C#: namespace, using System, properties
-      - And more...
-    * Integrated as fallback in `extractBlocks()` when className detection fails
+    * ChatGPT uses TWO code block structures (pre>code and div-based)
+  - Solution: Multi-tier detection with ChatGPT's own labels:
+    * **PRIORITY 1**: ChatGPT's header div label (most reliable)
+      - Extracts language from header: `<div>json</div>`
+      - Ground truth - what ChatGPT shows users
+      - Handles div.contain-inline-size structure (lines 4710-4748)
+    * **PRIORITY 2**: className attribute (fallback)
+      - Checks for `language-*` class on code element
+      - Works for both old (pre>code) and new (div) structures
+    * **PRIORITY 3**: Pattern-based smart detection (final fallback)
+      - Detects 20+ languages: Python, Java, JS, TS, C#, Go, Rust, Ruby, Swift, Kotlin
+      - JSON, XML, HTML, CSS, SQL, Bash, PHP, C/C++, Markdown, YAML
+      - Scoring system with confidence thresholds
+      - Language-specific identifiers (def/class, interface, namespace, etc.)
+    * Handles BOTH ChatGPT code block structures:
+      - Traditional: `<pre><code class="language-X">`
+      - Modern: `<div><div>label</div>...<code>`
 
 ### 🔄 PENDING TASKS
 
