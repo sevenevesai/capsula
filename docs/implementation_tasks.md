@@ -1,5 +1,109 @@
 # Implementation Tasks: ChatGPT Export Fixes
 
+## Implementation Status (Updated: 2025-11-03)
+
+### ✅ COMPLETED TASKS
+
+- **Task 1**: Fix Thinking Detection - Use Structural Selectors ✓
+  - Status: COMPLETE (was already done previously, enhanced 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3969-4083
+  - Implementation: Multi-strategy detection with 3 approaches, preserves multi-stage thinking
+  - Note: Enhanced from basic selector to comprehensive detection (see Enhancement below)
+
+- **Task 2**: Fix Role Detection - Never Use Thinking as Fallback ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3822-3886
+  - Implementation: Checks `article[data-turn]` first, removed thinking-based detection
+
+- **Task 3**: Add Canvas Artifact Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3888-3942
+  - Implementation: New `detectCanvasArtifact()` method with 3 detection strategies
+
+- **Task 4**: Add File Attachment Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3944-3988
+  - Implementation: New `detectFileAttachment()` method with category detection
+
+- **Task 5**: Update Message Processing Order ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3562-3650
+  - Implementation: Proper sequence with role → canvas/attachment → thinking → content
+
+### ✅ ADDITIONAL COMPLETED TASKS
+
+- **Task 6**: Update Export Formats with New Metadata ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 2506-2870
+  - Changes:
+    * CRITICAL FIX: Thinking labels now appear AFTER role header
+    * Added file attachment markers (📎)
+    * Added canvas artifact markers (📋)
+    * Multi-stage thinking properly displayed
+    * Added parseThinkingTime() method for accurate time tracking
+    * Enhanced HTML with styled markers and dark mode support
+
+- **Task 7**: Update Dashboard Metrics ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 2928-3652
+  - Changes:
+    * Fixed thinking time calculation (was 0s, now accurate)
+    * Added multi-stage thinking metrics
+    * Added canvas artifacts section (total, documents, code)
+    * Added file attachments section (total + breakdown by type)
+    * Enhanced thinking section with multi-stage stats
+
+- **Enhancement**: Robust Thinking Detection (Multi-Strategy) ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 3933-4083
+  - Problem: Original selector `.relative.my-1.min-h-6` was too strict, missing:
+    * Canvas-only responses with thinking labels
+    * Multi-stage thinking sequences (5+ stages)
+    * Text patterns like "couple of seconds"
+  - Solution: Implemented multi-strategy detection:
+    * Strategy 1: Flexible class-based selector `div.relative[class*="my-"][class*="min-h"]`
+    * Strategy 2: Content-based detection searching for thinking text patterns
+    * Strategy 3: Future-proof explicit marker detection
+    * Enhanced `parseThinkingTime()` to handle "few seconds", "couple seconds", "moment"
+    * Added comprehensive false-positive filters
+    * Added console logging for debugging
+
+- **Enhancement**: Smart Code Language Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 4352-4677 (detectCodeLanguage), 4693-4748 (integration)
+  - Problem: Code blocks always showing as "unknown" in dashboard
+    * ChatGPT doesn't always add `language-*` classes to code blocks
+    * Need accurate detection without misclassification
+    * ChatGPT uses TWO code block structures (pre>code and div-based)
+  - Solution: Multi-tier detection with ChatGPT's own labels:
+    * **PRIORITY 1**: ChatGPT's header div label (most reliable)
+      - Extracts language from header: `<div>json</div>`
+      - Ground truth - what ChatGPT shows users
+      - Handles div.contain-inline-size structure (lines 4710-4748)
+    * **PRIORITY 2**: className attribute (fallback)
+      - Checks for `language-*` class on code element
+      - Works for both old (pre>code) and new (div) structures
+    * **PRIORITY 3**: Pattern-based smart detection (final fallback)
+      - Detects 20+ languages: Python, Java, JS, TS, C#, Go, Rust, Ruby, Swift, Kotlin
+      - JSON, XML, HTML, CSS, SQL, Bash, PHP, C/C++, Markdown, YAML
+      - Scoring system with confidence thresholds
+      - Language-specific identifiers (def/class, interface, namespace, etc.)
+    * Handles BOTH ChatGPT code block structures:
+      - Traditional: `<pre><code class="language-X">`
+      - Modern: `<div><div>label</div>...<code>`
+
+### 🔄 PENDING TASKS
+
+- **Testing**: Verify all fixes work with actual ChatGPT exports
+
+### 📝 Testing Status
+
+- Manual testing with sample HTML files: PENDING
+- Integration testing: PENDING
+- Export validation: PENDING
+
+---
+
 ## Overview
 
 Based on analysis of actual ChatGPT DOM structure and the current extraction code, this document provides **exact code changes** to fix all identified issues. Each task includes:
@@ -8,11 +112,17 @@ Based on analysis of actual ChatGPT DOM structure and the current extraction cod
 - Fixed code
 - Testing requirements
 
-All tasks reference `/mnt/user-data/uploads/contentjs.txt` (the current extraction code).
+All tasks reference the current extraction code in `/home/user/capsula/content.js`.
 
 ---
 
 ## Task 1: Fix Thinking Detection - Use Structural Selectors
+
+### ✅ STATUS: COMPLETE (Previously Implemented)
+**Location**: `content.js` lines 3652-3741
+**Result**: Method now uses structural selectors only, preventing false positives
+
+---
 
 ### Problem
 **Lines 3652-3717**: `detectThinkingStates()` recursively searches ALL text nodes in the container, which causes:
@@ -149,6 +259,17 @@ detectThinkingStates(container) {
 
 ## Task 2: Fix Role Detection - Never Use Thinking as Fallback
 
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3822-3886
+**Changes**:
+- Added `article[data-turn]` as Priority 1 check
+- Removed lines 3832-3833 (thinking-based role detection)
+- Added `.user-message-bubble-color` detection
+- Improved content-based heuristics
+- Added warning logging for uncertain cases
+
+---
+
 ### Problem
 **Lines 3798-3818**: `detectRole()` uses thinking detection as a fallback to determine role, which can cause user messages to be misidentified as assistant if they happen to contain thinking-like text.
 
@@ -264,6 +385,16 @@ detectRole(el) {
 ---
 
 ## Task 3: Add Canvas Artifact Detection
+
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3888-3942
+**Changes**:
+- Added new `detectCanvasArtifact()` method
+- Implements 3 detection strategies (textdoc ID, code canvas, general popover)
+- Extracts title, type, and content element
+- Returns metadata object or null
+
+---
 
 ### Problem
 The current code doesn't detect or mark Canvas artifacts (documents, code blocks generated in canvas interface). These should be identified and marked with metadata.
@@ -393,6 +524,17 @@ turnContainers.forEach((container, index) => {
 
 ## Task 4: Add File Attachment Detection
 
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3944-3988
+**Changes**:
+- Added new `detectFileAttachment()` method
+- Only processes user messages
+- Detects file preview structure with border styling
+- Extracts fileName, fileType, and categorizes by type
+- Returns metadata object or null
+
+---
+
 ### Problem
 User messages with file attachments (images, PDFs, zips) are not detected or marked with metadata about the attached file.
 
@@ -517,6 +659,24 @@ if (msg.hasAttachment) {
 ---
 
 ## Task 5: Update Message Processing Order
+
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3562-3650
+**Changes**:
+- Updated `collectAllMessages()` method with proper detection sequence
+- Role detection runs FIRST (not dependent on content)
+- Canvas/attachment detection based on role (assistant/user)
+- Thinking detection ONLY for assistant messages
+- Added all new metadata fields to message object
+- Improved validation logic
+
+**New Message Metadata Fields**:
+- `thinkingSequence`: Array for multi-stage thinking
+- `canvas`, `isCanvas`, `canvasTitle`, `canvasType`: Canvas artifact metadata
+- `attachment`, `hasAttachment`: File attachment metadata
+- `model`: Assistant model information
+
+---
 
 ### Problem
 The current order of detection can cause issues. Need to ensure role is determined first, then type-specific features.

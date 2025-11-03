@@ -2521,28 +2521,70 @@ const ExportManager = {
     
     messages.forEach(msg => {
       const roleLabel = msg.role === 'user' ? 'You' : 'ChatGPT';
-      
-      // Add thinking labels
-      if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-        msg.thinking.labels.forEach(label => {
-          md += `*${label.text}*\n\n`;
-        });
+
+      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
+      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
+      const hasContent = hasBlocks || hasPlain;
+
+      // TASK 6 FIX: Always add role header first, then thinking/metadata
+      const hasThinking = msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0;
+      const hasCanvas = msg.isCanvas;
+      const hasAttachment = msg.hasAttachment;
+
+      // Skip completely empty messages (no content, no thinking, no canvas, no attachment)
+      if (!hasContent && !hasThinking && !hasCanvas && !hasAttachment) {
+        return;
+      }
+
+      // Add role header
+      md += `## ${roleLabel}\n\n`;
+
+      // Add thinking labels (AFTER role header, only for assistant)
+      if (hasThinking && msg.role === 'assistant') {
+        if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+          // Multi-stage thinking: show all stages
+          msg.thinkingSequence.forEach(think => {
+            md += `*${think.text}*\n\n`;
+          });
+        } else {
+          // Single thinking label
+          msg.thinking.labels.forEach(label => {
+            md += `*${label.text}*\n\n`;
+          });
+        }
         if (msg.thinking.expandable) {
           md += `*[Expandable content available]*\n\n`;
         }
       }
-      
-      const hasBlocks = Array.isArray(msg.blocks) && msg.blocks.length > 0;
-      const hasPlain = !!(msg.plain && msg.plain.text && msg.plain.text.trim().length);
-      const hasContent = hasBlocks || hasPlain;
-      
+
+      // Add file attachment marker (before content, only for user)
+      if (hasAttachment && msg.role === 'user') {
+        md += `📎 **Attached**: ${msg.attachment.fileName}`;
+        if (msg.attachment.fileType) {
+          md += ` (${msg.attachment.fileType})`;
+        }
+        md += `\n\n`;
+      }
+
+      // Add canvas marker (before content, only for assistant)
+      if (hasCanvas && msg.role === 'assistant') {
+        md += `📋 **Canvas Artifact**: ${msg.canvasTitle}`;
+        if (msg.canvasType && msg.canvasType !== 'unknown') {
+          md += ` (${msg.canvasType})`;
+        }
+        md += `\n\n---\n\n`;
+      }
+
+      // Add message content
       if (hasContent && !msg.isThinking) {
-        md += `## ${roleLabel}\n\n`;
         if (hasBlocks) {
           md += this.blocksToMarkdown(msg.blocks) + '\n';
         } else if (hasPlain) {
           md += msg.plain.text + '\n\n';
         }
+      } else if (msg.isThinking) {
+        // Thinking-only message (e.g., "Stopped thinking" with no response)
+        md += `*[No response generated]*\n\n`;
       }
     });
     
@@ -2642,6 +2684,39 @@ const ExportManager = {
       margin-bottom: 4px;
       font-style: italic;
     }
+    .thinking-sequence {
+      margin-bottom: 8px;
+    }
+    .thinking-stage-1, .thinking-stage-2, .thinking-stage-3,
+    .thinking-stage-4, .thinking-stage-5 {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 2px;
+      font-style: italic;
+    }
+    .canvas-marker {
+      background: #dbeafe;
+      border-left: 3px solid #3b82f6;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .file-attachment {
+      background: #fef3c7;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-type {
+      color: #92400e;
+      font-size: 12px;
+    }
     .bubble {
       max-width: 70%;
       padding: 12px 16px;
@@ -2702,6 +2777,9 @@ const ExportManager = {
       body { background: #111827; color: #f9fafb; }
       .meta { background: #374151; }
       .message.assistant .bubble { background: #374151; color: #f9fafb; }
+      .canvas-marker { background: #1e3a8a; border-left-color: #60a5fa; }
+      .file-attachment { background: #78350f; border-left-color: #fbbf24; }
+      .file-type { color: #fde68a; }
     }
   </style>
 </head>
@@ -2714,27 +2792,75 @@ const ExportManager = {
   </div>
   
   ${messages.map(msg => {
-    let thinkingHtml = '';
+    // TASK 6 FIX: Enhanced HTML generation with canvas and attachment markers
+    let metadataHtml = '';
+
+    // Thinking labels (multi-stage or single)
     if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
-      thinkingHtml = msg.thinking.labels.map(label =>
-        `<div class="thinking-label">${Utils.escapeHtml(label.text)}</div>`
-      ).join('');
-      // Note: expandable content indicator removed - it was non-functional
+      if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+        // Multi-stage thinking
+        metadataHtml += '<div class="thinking-sequence">';
+        msg.thinkingSequence.forEach((think, idx) => {
+          metadataHtml += `<div class="thinking-label thinking-stage-${idx + 1}">🤔 ${Utils.escapeHtml(think.text)}</div>`;
+        });
+        metadataHtml += '</div>';
+      } else {
+        // Single thinking label
+        metadataHtml += msg.thinking.labels.map(label =>
+          `<div class="thinking-label">🤔 ${Utils.escapeHtml(label.text)}</div>`
+        ).join('');
+      }
+      if (msg.thinking.expandable) {
+        metadataHtml += '<div class="thinking-label">[Expandable content available]</div>';
+      }
     }
-    
+
+    // File attachment marker (user messages only)
+    if (msg.hasAttachment && msg.role === 'user') {
+      const icons = {
+        image: '🖼️',
+        pdf: '📄',
+        archive: '📦',
+        document: '📝',
+        code: '💻',
+        file: '📎'
+      };
+      const icon = icons[msg.attachment.category] || '📎';
+      metadataHtml += `<div class="file-attachment">
+        <span>${icon}</span>
+        <div>
+          <strong>Attached:</strong> ${Utils.escapeHtml(msg.attachment.fileName)}
+          ${msg.attachment.fileType ? `<span class="file-type">(${Utils.escapeHtml(msg.attachment.fileType)})</span>` : ''}
+        </div>
+      </div>`;
+    }
+
+    // Canvas artifact marker (assistant messages only)
+    if (msg.isCanvas && msg.role === 'assistant') {
+      metadataHtml += `<div class="canvas-marker">
+        📋 <strong>Canvas Artifact:</strong> ${Utils.escapeHtml(msg.canvasTitle)}
+        ${msg.canvasType && msg.canvasType !== 'unknown' ? `<span style="font-size: 12px; color: #1e40af;">(${msg.canvasType})</span>` : ''}
+      </div>`;
+    }
+
     const bubbleContent = MessageFormatter.format(msg);
     const hasBubbleContent = bubbleContent && bubbleContent.trim().length > 0;
-    
-    if (!hasBubbleContent && !thinkingHtml) return '';
-    
+
+    // Skip completely empty messages
+    if (!hasBubbleContent && !metadataHtml) return '';
+
     return `
     <div class="message ${msg.role}">
       <div style="max-width: 70%;">
-        ${thinkingHtml}
+        ${metadataHtml}
         ${hasBubbleContent ? `
         <div class="bubble">
           <div class="role">${msg.role === 'user' ? 'You' : 'ChatGPT'}</div>
           ${bubbleContent}
+        </div>` : msg.isThinking ? `
+        <div class="bubble">
+          <div class="role">ChatGPT</div>
+          <em>[No response generated]</em>
         </div>` : ''}
       </div>
     </div>
@@ -2823,7 +2949,28 @@ const DashboardGenerator = {
         instances: 0,
         totalSeconds: 0,
         avgSeconds: 0,
-        percentageWithThinking: 0
+        percentageWithThinking: 0,
+        multiStage: 0,  // TASK 7: Multi-stage thinking count
+        totalStages: 0  // TASK 7: Total thinking stages
+      },
+      // TASK 7: Canvas artifacts
+      canvas: {
+        total: 0,
+        documents: 0,
+        code: 0,
+        unknown: 0
+      },
+      // TASK 7: File attachments
+      attachments: {
+        total: 0,
+        byType: {
+          image: 0,
+          pdf: 0,
+          archive: 0,
+          document: 0,
+          code: 0,
+          file: 0
+        }
       },
       codeLanguages: {},
       messageLength: {
@@ -2892,28 +3039,43 @@ const DashboardGenerator = {
         }
       });
 
-      // Thinking state analysis
+      // TASK 7: Thinking state analysis (improved)
       if (msg.thinking && msg.thinking.labels && msg.thinking.labels.length > 0) {
         stats.thinking.instances++;
 
-        // Extract thinking time from labels
-        msg.thinking.labels.forEach(label => {
-          const timeMatch = label.text.match(/(\d+)\s*(?:minute|min)s?\s*(?:and\s*)?(\d+)?\s*(?:second|sec)s?|(\d+)\s*(?:second|sec)s?/i);
-          if (timeMatch) {
-            let seconds = 0;
-            if (timeMatch[1] && timeMatch[2]) {
-              // Minutes and seconds
-              seconds = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
-            } else if (timeMatch[3]) {
-              // Just seconds
-              seconds = parseInt(timeMatch[3]);
-            } else if (timeMatch[1]) {
-              // Just minutes
-              seconds = parseInt(timeMatch[1]) * 60;
-            }
-            stats.thinking.totalSeconds += seconds;
-          }
-        });
+        // Use pre-calculated totalSeconds from message (more reliable)
+        if (msg.thinking.totalSeconds) {
+          stats.thinking.totalSeconds += msg.thinking.totalSeconds;
+        }
+
+        // Count multi-stage thinking
+        if (msg.thinkingSequence && msg.thinkingSequence.length > 1) {
+          stats.thinking.multiStage++;
+          stats.thinking.totalStages += msg.thinkingSequence.length;
+        } else {
+          stats.thinking.totalStages += msg.thinking.labels.length;
+        }
+      }
+
+      // TASK 7: Canvas artifact analysis
+      if (msg.isCanvas) {
+        stats.canvas.total++;
+        if (msg.canvasType === 'document') {
+          stats.canvas.documents++;
+        } else if (msg.canvasType === 'code') {
+          stats.canvas.code++;
+        } else {
+          stats.canvas.unknown++;
+        }
+      }
+
+      // TASK 7: File attachment analysis
+      if (msg.hasAttachment && msg.attachment) {
+        stats.attachments.total++;
+        const category = msg.attachment.category || 'file';
+        if (stats.attachments.byType[category] !== undefined) {
+          stats.attachments.byType[category]++;
+        }
       }
 
       // Timeline data
@@ -3410,6 +3572,81 @@ const DashboardGenerator = {
           <div class="card-value">${this.formatTime(stats.thinking.avgSeconds)}</div>
           <div class="card-subtitle">Per thinking instance</div>
         </div>
+        ${stats.thinking.multiStage > 0 ? `
+        <div class="card">
+          <div class="card-title">Multi-Stage Thinking</div>
+          <div class="card-value">${stats.thinking.multiStage}</div>
+          <div class="card-subtitle">${stats.thinking.totalStages} total stages</div>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+    ` : ''}
+
+    ${stats.canvas.total > 0 ? `
+    <!-- Canvas Artifacts -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📋</span> Canvas Artifacts</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Total Artifacts</div>
+          <div class="card-value">${stats.canvas.total}</div>
+          <div class="card-subtitle">Generated canvases</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Documents</div>
+          <div class="card-value">${stats.canvas.documents}</div>
+          <div class="card-subtitle">Text documents</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Code Canvases</div>
+          <div class="card-value">${stats.canvas.code}</div>
+          <div class="card-subtitle">Code artifacts</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
+    ${stats.attachments.total > 0 ? `
+    <!-- File Attachments -->
+    <div class="section">
+      <h2 class="section-title"><span class="icon">📎</span> File Attachments</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">Total Attachments</div>
+          <div class="card-value">${stats.attachments.total}</div>
+          <div class="card-subtitle">Files uploaded</div>
+        </div>
+        ${stats.attachments.byType.image > 0 ? `
+        <div class="card">
+          <div class="card-title">Images</div>
+          <div class="card-value">🖼️ ${stats.attachments.byType.image}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.pdf > 0 ? `
+        <div class="card">
+          <div class="card-title">PDFs</div>
+          <div class="card-value">📄 ${stats.attachments.byType.pdf}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.archive > 0 ? `
+        <div class="card">
+          <div class="card-title">Archives</div>
+          <div class="card-value">📦 ${stats.attachments.byType.archive}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.document > 0 ? `
+        <div class="card">
+          <div class="card-title">Documents</div>
+          <div class="card-value">📝 ${stats.attachments.byType.document}</div>
+        </div>
+        ` : ''}
+        ${stats.attachments.byType.code > 0 ? `
+        <div class="card">
+          <div class="card-title">Code Files</div>
+          <div class="card-value">💻 ${stats.attachments.byType.code}</div>
+        </div>
+        ` : ''}
       </div>
     </div>
     ` : ''}
@@ -3560,48 +3797,92 @@ const Harvester = {
   },
 
   collectAllMessages() {
+    // TASK 5: Updated message processing order
+    // Proper sequence: role → canvas/attachment → thinking → content → metadata
     const messages = [];
     const processedElements = new Set();
-    
+
     const turnContainers = this.findAllTurnContainers();
-    
+
     turnContainers.forEach((container, index) => {
       if (processedElements.has(container)) return;
       processedElements.add(container);
-      
+
+      // STEP 1: Determine role FIRST (never depends on content)
       const role = this.detectRole(container);
-      const thinkingInfo = this.detectThinkingStates(container);
+
+      // STEP 2: Type-specific detection (depends on role)
+      // Canvas artifacts only for assistant messages
+      const canvasInfo = role === 'assistant' ? this.detectCanvasArtifact(container) : null;
+      // File attachments only for user messages
+      const fileAttachment = role === 'user' ? this.detectFileAttachment(container) : null;
+
+      // STEP 3: Thinking detection (ONLY for assistant messages, uses structural selectors)
+      const thinkingInfo = role === 'assistant'
+        ? this.detectThinkingStates(container)
+        : { labels: [], expandable: false };
+
+      // STEP 4: Content validation
       const hasContent = this.hasActualContent(container);
-      
-      if (!hasContent && !thinkingInfo.labels.length) return;
-      
-      const contentNode = this.findContentNode(container) || container;
+
+      // STEP 5: Skip if no content, no thinking, no canvas, no attachment
+      if (!hasContent && !canvasInfo && !fileAttachment && !thinkingInfo.labels.length) {
+        console.debug('[ChatGPT Export] Skipping empty message', container);
+        return;
+      }
+
+      // STEP 6: Extract content (use canvas content if present)
+      const contentNode = canvasInfo
+        ? canvasInfo.contentElement
+        : (this.findContentNode(container) || container);
+
       const clone = contentNode.cloneNode(true);
       this.sanitizeClone(clone);
-      
+
       const blocks = this.extractBlocks(clone);
       const plainText = (clone.textContent || '').replace(/\s+\n/g, '\n').trim();
-      
+
+      // STEP 7: Build message object with all metadata
       const message = {
         id: container.id || `msg-${messages.length + 1}`,
         index: messages.length,
         role: role,
+
+        // Thinking metadata (preserves multi-stage sequences)
         thinking: thinkingInfo.labels.length > 0 ? thinkingInfo : null,
-        isThinking: thinkingInfo.labels.length > 0 && !hasContent,
-        incomplete: thinkingInfo.labels.some(l => 
-          /stopped|paused|failed/i.test(l.text)
-        ),
-        blocks: blocks.length ? blocks : (plainText && !thinkingInfo.labels.length ? 
+        thinkingSequence: thinkingInfo.labels.length > 1 ? thinkingInfo.labels : null,
+        isThinking: thinkingInfo.labels.length > 0 && !hasContent && !canvasInfo,
+        incomplete: thinkingInfo.labels.some(l => /stopped|paused|failed/i.test(l.text)),
+
+        // Canvas metadata
+        canvas: canvasInfo || null,
+        isCanvas: canvasInfo !== null,
+        canvasTitle: canvasInfo?.title || null,
+        canvasType: canvasInfo?.type || null,
+
+        // File attachment metadata
+        attachment: fileAttachment || null,
+        hasAttachment: fileAttachment !== null,
+
+        // Content
+        blocks: blocks.length ? blocks : (plainText && !thinkingInfo.labels.length ?
           [{ kind: 'para', md: plainText }] : []),
         plain: { text: plainText || '' },
-        timestamp: new Date().toISOString()
+
+        // Metadata
+        timestamp: new Date().toISOString(),
+        model: role === 'assistant' ? this.detectModel() : null
       };
-      
-      if (message.plain.text || message.blocks.length > 0 || thinkingInfo.labels.length > 0) {
+
+      // STEP 8: Final validation and add to messages
+      if (message.plain.text || message.blocks.length > 0 || message.thinking ||
+          message.canvas || message.attachment) {
         messages.push(message);
+      } else {
+        console.warn('[ChatGPT Export] Skipping message with no extractable content', container);
       }
     });
-    
+
     return messages;
   },
 
@@ -3649,80 +3930,131 @@ const Harvester = {
     });
   },
 
+  parseThinkingTime(text) {
+    // TASK 6: Parse thinking time from text patterns
+    // Returns time in seconds, or 0 if no time found
+    if (!text) return 0;
+
+    // Pattern 1: "Xm Ys" or "X minutes Y seconds"
+    const minSecMatch = text.match(/(\d+)\s*(?:m|min|minutes?)\s+(?:and\s+)?(\d+)\s*(?:s|sec|seconds?)/i);
+    if (minSecMatch) {
+      return parseInt(minSecMatch[1]) * 60 + parseInt(minSecMatch[2]);
+    }
+
+    // Pattern 2: "Xs" or "X seconds" (only)
+    const secMatch = text.match(/(\d+)\s*(?:s|sec|seconds?)(?!\s*\d)/i);
+    if (secMatch) {
+      return parseInt(secMatch[1]);
+    }
+
+    // Pattern 3: "Xm" or "X minutes" (only)
+    const minMatch = text.match(/(\d+)\s*(?:m|min|minutes?)(?!\s*\d)/i);
+    if (minMatch) {
+      return parseInt(minMatch[1]) * 60;
+    }
+
+    // Pattern 4: "a few seconds" / "a couple seconds" / "a moment" / "briefly"
+    if (/few\s+seconds?|couple\s+(?:of\s+)?seconds?/i.test(text)) {
+      return 3; // Estimate 3 seconds
+    }
+
+    // Pattern 5: "a moment" / "briefly"
+    if (/\b(?:a\s+)?moment|brief(?:ly)?/i.test(text)) {
+      return 2; // Estimate 2 seconds
+    }
+
+    return 0;
+  },
+
   detectThinkingStates(container) {
     const labels = [];
     const expanderSelectors = [];
     const seenTexts = new Set();
+    const processedDivs = new Set();
 
-    // CRITICAL FIX: Only look in STRUCTURAL thinking div locations
-    // ChatGPT places thinking indicators in specific divs with these classes
-    // Located ABOVE the message content, not within it
-    // This prevents false positives from user messages containing "Thought for" text
+    // ENHANCED FIX: Use multiple strategies to catch ALL thinking indicators
+    // ChatGPT thinking labels appear in divs ABOVE message content with specific patterns
 
-    // Primary selector: the specific thinking indicator divs
-    const thinkingDivs = container.querySelectorAll('.relative.my-1.min-h-6');
+    // Strategy 1: Primary selector - the typical thinking div structure
+    const strategy1Divs = container.querySelectorAll('div.relative[class*="my-"][class*="min-h"]');
 
-    // Fallback: also check for other common thinking indicator patterns
-    // (in case ChatGPT updates their class structure)
-    const fallbackThinkingDivs = container.querySelectorAll('[class*="thinking"], [data-thinking]');
+    // Strategy 2: Find divs that contain thinking-like text (catches variations)
+    const allRelativeDivs = container.querySelectorAll('div.relative');
+    const strategy2Divs = Array.from(allRelativeDivs).filter(div => {
+      // Must be small divs (thinking indicators are compact)
+      if (div.offsetHeight > 100) return false;
 
-    // Combine both sets, avoiding duplicates
-    const allThinkingDivs = new Set([...thinkingDivs, ...fallbackThinkingDivs]);
+      // Check if it contains thinking text
+      const text = div.textContent || '';
+      const hasThinkingText = /Thought for|Thinking for|Processing for|Stopped thinking|Analyzing|Working on/i.test(text);
 
-    allThinkingDivs.forEach((thinkingDiv, index) => {
-      // Look for the thinking text span within this specific div
-      // Common patterns: spans with text-token-text-secondary class or similar
-      const thinkingSpans = thinkingDiv.querySelectorAll(
-        'span.text-token-text-secondary, span[class*="text-token-text"], span[class*="text-"]'
-      );
+      // Exclude if it's inside message content
+      if (div.hasAttribute('data-message-author-role')) return false;
+      if (div.closest('[data-message-author-role]')?.contains(div)) return false;
 
-      thinkingSpans.forEach(thinkingSpan => {
-        const text = (thinkingSpan.textContent || '').trim();
+      return hasThinkingText;
+    });
+
+    // Strategy 3: Explicit thinking markers (future-proof)
+    const strategy3Divs = container.querySelectorAll('[class*="thinking"], [data-thinking]');
+
+    // Combine all strategies, removing duplicates
+    const allDivs = [...strategy1Divs, ...strategy2Divs, ...strategy3Divs];
+    const uniqueDivs = allDivs.filter(div => {
+      if (processedDivs.has(div)) return false;
+      processedDivs.add(div);
+      return true;
+    });
+
+    uniqueDivs.forEach((thinkingDiv) => {
+      // Search ALL spans - be comprehensive
+      const allSpans = thinkingDiv.querySelectorAll('span');
+
+      allSpans.forEach(span => {
+        let text = (span.textContent || '').trim();
+
+        // Skip empty or already seen
         if (!text || seenTexts.has(text)) return;
 
-        // Check if this matches thinking patterns
-        let matchedType = null;
+        // Clean up text (remove SVG content markers, extra whitespace)
+        text = text.replace(/<svg.*?<\/svg>/gi, '').trim();
 
-        // Check time patterns first (most reliable)
-        for (const pattern of CFG.thinkingPatterns.timePatterns) {
-          if (pattern.test(text)) {
-            matchedType = 'time';
-            break;
-          }
-        }
+        // Pattern matching - be comprehensive
+        const isTimePattern = /Thought for|Thinking for|Processing for/i.test(text);
+        const isStatePattern = /Stopped thinking|Stopped|Analyzing|Processing|Working|Calculating|Reading|Planning/i.test(text);
 
-        // If no time pattern, check state patterns
-        if (!matchedType) {
-          for (const pattern of CFG.thinkingPatterns.statePatterns) {
-            if (pattern.test(text)) {
-              matchedType = 'state';
-              break;
-            }
-          }
-        }
+        // Filter out false positives
+        // Skip if too long (thinking labels are short, < 50 chars typically)
+        if (text.length > 100) return;
 
-        if (matchedType) {
+        // Skip if has multiple sentences
+        if ((text.match(/\.\s+[A-Z]/g) || []).length > 0) return;
+
+        // Skip common UI elements
+        if (/^(You|ChatGPT|User|Assistant|Copy|Edit|Regenerate|Download|Good response|Bad response)$/i.test(text)) return;
+
+        // Match!
+        if (isTimePattern || isStatePattern) {
+          const matchedType = isTimePattern ? 'time' : 'state';
+
           labels.push({
             text: text,
             order: labels.length,  // Preserve sequence for multi-stage thinking
-            type: matchedType
+            type: matchedType,
+            seconds: this.parseThinkingTime(text)
           });
           seenTexts.add(text);
         }
       });
 
-      // Check for expander button in this thinking div
-      // Scope the search to this specific div to avoid false positives
-      const button = thinkingDiv.querySelector(
-        'button[aria-expanded], button[role="button"]'
-      );
+      // Check for expander button
+      const button = thinkingDiv.querySelector('button[aria-expanded], button[role="button"]');
 
       if (button) {
         const ariaExpanded = button.getAttribute('aria-expanded');
         const hasRadixId = button.id && button.id.startsWith('radix-');
         const buttonText = (button.textContent || '').toLowerCase();
 
-        // Only include if it's actually an expander (collapsed state)
         if (ariaExpanded === 'false' || hasRadixId ||
             /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
           const selector = this.getElementSelector(button);
@@ -3733,8 +4065,12 @@ const Harvester = {
       }
     });
 
+    // TASK 6: Calculate total thinking time
+    const totalSeconds = labels.reduce((sum, label) => sum + (label.seconds || 0), 0);
+
     return {
       labels: labels,  // Array preserving all thinking stages in order
+      totalSeconds: totalSeconds,  // Total time in seconds
       expandable: expanderSelectors.length > 0,
       expanderSelectors: expanderSelectors.length > 0 ? expanderSelectors : undefined
     };
@@ -3820,26 +4156,171 @@ const Harvester = {
   },
 
   detectRole(el) {
+    // TASK 2 FIX: Never use thinking as role indicator
+    // Priority 1: Check article-level data-turn attribute (most reliable)
+    // This is the primary way ChatGPT marks message roles
+    const article = el.closest('article[data-turn]');
+    if (article) {
+      const turn = article.getAttribute('data-turn');
+      if (turn === 'user' || turn === 'assistant') {
+        return turn;
+      }
+    }
+
+    // Priority 2: Check message-level data-message-author-role on current element
     const attr = el.getAttribute('data-message-author-role');
-    if (attr) return attr;
+    if (attr === 'user' || attr === 'assistant') return attr;
 
+    // Priority 3: Check nested message div
     const nested = el.querySelector('[data-message-author-role]');
-    if (nested) return nested.getAttribute('data-message-author-role');
+    if (nested) {
+      const nestedRole = nested.getAttribute('data-message-author-role');
+      if (nestedRole === 'user' || nestedRole === 'assistant') {
+        return nestedRole;
+      }
+    }
 
+    // Priority 4: Check parent message div
     const parent = el.closest('[data-message-author-role]');
-    if (parent) return parent.getAttribute('data-message-author-role');
+    if (parent) {
+      const parentRole = parent.getAttribute('data-message-author-role');
+      if (parentRole === 'user' || parentRole === 'assistant') {
+        return parentRole;
+      }
+    }
 
-    const thinkingInfo = this.detectThinkingStates(el);
-    if (thinkingInfo.labels.length > 0) return 'assistant';
+    // CRITICAL FIX: Removed thinking-based role detection
+    // Thinking labels should NEVER determine role
+    // This prevents user messages containing "Thought for" text from being misidentified
 
+    // Priority 5: Content-based heuristics (least reliable, use only as last resort)
     const text = (el.textContent || '').toLowerCase();
-    if (text.startsWith('you:') || el.querySelector('img[alt*="User"]')) return 'user';
-    if (text.includes('chatgpt') || el.querySelector('img[alt*="ChatGPT"]')) return 'assistant';
 
+    // Check for explicit role indicators in text
+    if (text.startsWith('you said:') || text.startsWith('you:')) return 'user';
+    if (text.startsWith('chatgpt said:') || text.startsWith('chatgpt:')) return 'assistant';
+
+    // Check for user/assistant avatars or images
+    if (el.querySelector('img[alt*="User" i]')) return 'user';
+    if (el.querySelector('img[alt*="ChatGPT" i], img[alt*="Assistant" i]')) return 'assistant';
+
+    // Check for user bubble styling (specific to user messages)
+    if (el.querySelector('.user-message-bubble-color')) return 'user';
+
+    // Check for layout alignment (user messages typically right-aligned)
     const style = window.getComputedStyle(el);
-    if (style.textAlign === 'right' || style.justifyContent === 'flex-end') return 'user';
+    if (style.textAlign === 'right' || style.justifyContent === 'flex-end') {
+      // Double-check this isn't an assistant message with right-aligned content
+      if (!el.querySelector('.markdown.prose')) {
+        return 'user';
+      }
+    }
 
+    // Default to assistant if uncertain (safer than defaulting to user)
+    console.warn('[ChatGPT Export] Could not reliably detect role for element, defaulting to assistant', el);
     return 'assistant';
+  },
+
+  detectCanvasArtifact(container) {
+    // TASK 3: Detect Canvas artifacts (documents, code blocks in canvas interface)
+    // Canvas artifacts should be identified and marked with metadata
+    // These are assistant-generated documents that appear in a special canvas UI
+
+    // Method 1: Check for textdoc-message ID (document canvas)
+    // Canvas documents have specific ID pattern: "textdoc-message-[hash]"
+    const canvasDiv = container.querySelector('[id^="textdoc-message-"]');
+    if (canvasDiv) {
+      // Extract canvas metadata
+      const titleEl = canvasDiv.querySelector('.truncate.text-token-text-primary.font-semibold');
+      const title = titleEl?.textContent?.trim() || 'Untitled Canvas Document';
+
+      // Canvas content is in ProseMirror editor
+      const contentEl = canvasDiv.querySelector('.ProseMirror, [class*="_main_"]');
+
+      return {
+        isCanvas: true,
+        type: 'document',
+        title: title,
+        contentElement: contentEl,
+        id: canvasDiv.id
+      };
+    }
+
+    // Method 2: Check for code canvas (different structure)
+    // Code canvas has popover with rounded corners and code content
+    const codeCanvas = container.querySelector('.popover.rounded-3xl [class*="code-"]');
+    if (codeCanvas) {
+      const titleEl = codeCanvas.closest('.popover').querySelector('.font-semibold');
+      const title = titleEl?.textContent?.trim() || 'Code Canvas';
+
+      return {
+        isCanvas: true,
+        type: 'code',
+        title: title,
+        contentElement: codeCanvas
+      };
+    }
+
+    // Method 3: General canvas detection (fallback)
+    // Looks for the general canvas popover structure with ProseMirror editor
+    const popoverCanvas = container.querySelector('.popover.bg-token-bg-primary.rounded-3xl');
+    if (popoverCanvas && popoverCanvas.querySelector('.ProseMirror')) {
+      return {
+        isCanvas: true,
+        type: 'unknown',
+        title: 'Canvas Artifact',
+        contentElement: popoverCanvas
+      };
+    }
+
+    // No canvas artifact found
+    return null;
+  },
+
+  detectFileAttachment(container) {
+    // TASK 4: Detect file attachments in user messages
+    // Only user messages can have file attachments (images, PDFs, zips, etc.)
+
+    // Only user messages can have file attachments
+    const role = this.detectRole(container);
+    if (role !== 'user') return null;
+
+    // Look for file preview structure
+    // File attachments have a specific bordered container with file info
+    const filePreview = container.querySelector('.border-token-border-default.border.rounded-xl');
+    if (!filePreview) return null;
+
+    // Extract file metadata
+    const fileNameEl = filePreview.querySelector('.truncate.font-semibold');
+    const fileTypeEl = filePreview.querySelector('.text-token-text-secondary.truncate');
+
+    const fileName = fileNameEl?.textContent?.trim();
+    const fileType = fileTypeEl?.textContent?.trim();
+
+    if (!fileName) return null;
+
+    // Determine file category from type string or extension
+    let category = 'file';
+    const lowerType = (fileType || '').toLowerCase();
+    const lowerName = (fileName || '').toLowerCase();
+
+    if (lowerType.includes('image') || /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(lowerName)) {
+      category = 'image';
+    } else if (lowerType.includes('pdf') || lowerName.endsWith('.pdf')) {
+      category = 'pdf';
+    } else if (lowerType.includes('zip') || lowerType.includes('archive') || /\.(zip|rar|7z|tar|gz)$/i.test(lowerName)) {
+      category = 'archive';
+    } else if (lowerType.includes('text') || lowerType.includes('document') || /\.(txt|doc|docx|md)$/i.test(lowerName)) {
+      category = 'document';
+    } else if (lowerType.includes('code') || lowerType.includes('script') || /\.(js|py|java|cpp|cs|ts)$/i.test(lowerName)) {
+      category = 'code';
+    }
+
+    return {
+      fileName: fileName,
+      fileType: fileType,
+      category: category
+    };
   },
 
   sanitizeClone(root) {
@@ -3862,6 +4343,333 @@ const Harvester = {
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
   },
 
+  detectCodeLanguage(code) {
+    // Smart language detection based on code patterns
+    // Only returns a language when confident - better to return '' than misclassify
+
+    if (!code || !code.trim()) return '';
+
+    const trimmed = code.trim();
+    const lines = trimmed.split('\n');
+    const firstLine = lines[0].trim();
+    const codeLength = trimmed.length;
+
+    // Too short to reliably detect (unless it's JSON)
+    if (codeLength < 15 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      return '';
+    }
+
+    // JSON - Very distinct structure
+    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) &&
+        (trimmed.endsWith('}') || trimmed.endsWith(']'))) {
+      // Check for JSON-like patterns: "key": value
+      if (/"\w+"\s*:\s*[{\["\d]/.test(trimmed)) {
+        return 'json';
+      }
+    }
+
+    // XML/HTML - Very clear with tags
+    if (/<\/?[\w-]+[^>]*>/i.test(trimmed)) {
+      // Check if it's HTML specifically (has DOCTYPE, html, head, body, common HTML tags)
+      if (/<!DOCTYPE html|<html|<head|<body|<div|<span|<p>|<a\s/i.test(trimmed)) {
+        return 'html';
+      }
+      // Otherwise it's XML
+      if (/<\?xml|<[\w-]+:[\w-]+/i.test(trimmed)) {
+        return 'xml';
+      }
+      // Generic HTML if has common tags
+      if (/<(div|span|p|a|img|ul|ol|li|h[1-6]|table|tr|td|form|input|button)[>\s]/i.test(trimmed)) {
+        return 'html';
+      }
+      return 'xml';
+    }
+
+    // CSS - Selectors with properties
+    if (/[.#]?[\w-]+\s*{[\s\S]*?[a-z-]+\s*:\s*[^}]+;/i.test(trimmed)) {
+      // Confirm with multiple CSS patterns
+      if (/[:{};]/.test(trimmed) && /[a-z-]+\s*:\s*[^}]+;/i.test(trimmed)) {
+        return 'css';
+      }
+    }
+
+    // PHP - Starts with <?php
+    if (/^<\?php/i.test(trimmed)) {
+      return 'php';
+    }
+
+    // SQL - Multiple SQL keywords
+    const sqlKeywords = /\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|GROUP BY|ORDER BY|HAVING|CREATE|DROP|ALTER|TABLE)\b/gi;
+    const sqlMatches = (trimmed.match(sqlKeywords) || []).length;
+    if (sqlMatches >= 2) {
+      return 'sql';
+    }
+
+    // Shell/Bash - Shebang or common shell patterns
+    if (/^#!\/bin\/(ba)?sh|^#!/.test(firstLine)) {
+      return 'bash';
+    }
+    // Multiple shell commands
+    const shellCommands = /\b(echo|cd|ls|grep|awk|sed|cat|mkdir|rm|cp|mv|chmod|export|source)\b/g;
+    const shellMatches = (trimmed.match(shellCommands) || []).length;
+    if (shellMatches >= 3 || /^(echo|cd|ls|export)\s+/m.test(trimmed)) {
+      return 'bash';
+    }
+
+    // Python - Multiple Python-specific patterns
+    const pythonPatterns = {
+      defClass: /^(def|class)\s+\w+/m,
+      imports: /^(from|import)\s+\w+/m,
+      decorators: /^@\w+/m,
+      selfParam: /\bdef\s+\w+\(self/,
+      print: /\bprint\s*\(/,
+      ifName: /if\s+__name__\s*==\s*['"]__main__['"]/,
+      // No semicolons at end of lines (key differentiator from JS/Java/C#)
+      noSemicolons: !/;\s*$/m.test(lines.slice(0, 10).join('\n'))
+    };
+
+    let pythonScore = 0;
+    if (pythonPatterns.defClass.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.imports.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.decorators.test(trimmed)) pythonScore += 3;
+    if (pythonPatterns.selfParam.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.print.test(trimmed)) pythonScore += 1;
+    if (pythonPatterns.ifName.test(trimmed)) pythonScore += 3;
+    if (pythonPatterns.noSemicolons && (pythonPatterns.defClass.test(trimmed) || pythonPatterns.imports.test(trimmed))) {
+      pythonScore += 2;
+    }
+
+    if (pythonScore >= 4) {
+      return 'python';
+    }
+
+    // TypeScript - Type annotations and TS-specific keywords
+    const tsPatterns = {
+      interface: /\b(interface|type)\s+\w+/,
+      typeAnnotation: /:\s*(string|number|boolean|any|void|unknown|never)\b/,
+      generics: /<[A-Z]\w*>/,
+      asKeyword: /\bas\s+\w+/,
+      typeAlias: /type\s+\w+\s*=/
+    };
+
+    let tsScore = 0;
+    if (tsPatterns.interface.test(trimmed)) tsScore += 3;
+    if (tsPatterns.typeAnnotation.test(trimmed)) tsScore += 2;
+    if (tsPatterns.generics.test(trimmed)) tsScore += 1;
+    if (tsPatterns.asKeyword.test(trimmed)) tsScore += 2;
+    if (tsPatterns.typeAlias.test(trimmed)) tsScore += 3;
+
+    // Also needs JS-like patterns
+    const hasJsPatterns = /\b(const|let|var|function|=>|export|import)\b/.test(trimmed);
+
+    if (tsScore >= 3 && hasJsPatterns) {
+      return 'typescript';
+    }
+
+    // JavaScript - Multiple JS-specific patterns
+    const jsPatterns = {
+      varDecl: /\b(const|let|var)\s+\w+/,
+      arrowFunc: /=>\s*[{(]/,
+      functionKeyword: /\bfunction\s+\w+/,
+      asyncAwait: /\b(async|await)\b/,
+      consoleLog: /console\.(log|error|warn)/,
+      requireImport: /\b(require\(|import\s+.*from)/,
+      semicolons: /;$/m
+    };
+
+    let jsScore = 0;
+    if (jsPatterns.varDecl.test(trimmed)) jsScore += 2;
+    if (jsPatterns.arrowFunc.test(trimmed)) jsScore += 3;
+    if (jsPatterns.functionKeyword.test(trimmed)) jsScore += 1;
+    if (jsPatterns.asyncAwait.test(trimmed)) jsScore += 2;
+    if (jsPatterns.consoleLog.test(trimmed)) jsScore += 2;
+    if (jsPatterns.requireImport.test(trimmed)) jsScore += 2;
+    if (jsPatterns.semicolons.test(trimmed)) jsScore += 1;
+
+    if (jsScore >= 4) {
+      return 'javascript';
+    }
+
+    // Java - Class-based with specific syntax
+    const javaPatterns = {
+      publicClass: /\b(public|private|protected)\s+(static\s+)?(class|interface|enum)\s+\w+/,
+      mainMethod: /public\s+static\s+void\s+main/,
+      systemOut: /System\.(out|err)\.(println?|print)/,
+      imports: /^import\s+[\w.]+;/m,
+      semicolons: /;$/m,
+      types: /\b(String|int|void|boolean|double|float|long|char)\s+\w+/
+    };
+
+    let javaScore = 0;
+    if (javaPatterns.publicClass.test(trimmed)) javaScore += 3;
+    if (javaPatterns.mainMethod.test(trimmed)) javaScore += 3;
+    if (javaPatterns.systemOut.test(trimmed)) javaScore += 2;
+    if (javaPatterns.imports.test(trimmed)) javaScore += 1;
+    if (javaPatterns.types.test(trimmed)) javaScore += 1;
+    if (javaPatterns.semicolons.test(trimmed)) javaScore += 1;
+
+    if (javaScore >= 5) {
+      return 'java';
+    }
+
+    // C# - Namespace and .NET patterns
+    const csharpPatterns = {
+      namespace: /\bnamespace\s+\w+/,
+      usingSystem: /^using\s+(System|System\.)/m,
+      publicClass: /\b(public|private|protected|internal)\s+(static\s+)?(class|interface|struct)\s+\w+/,
+      properties: /\{\s*get;[\s\S]*?set;\s*\}/,
+      linq: /\b(from\s+\w+\s+in\s+|select\s+\w+)/,
+      async: /\basync\s+Task/
+    };
+
+    let csharpScore = 0;
+    if (csharpPatterns.namespace.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.usingSystem.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.publicClass.test(trimmed)) csharpScore += 2;
+    if (csharpPatterns.properties.test(trimmed)) csharpScore += 2;
+    if (csharpPatterns.linq.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.async.test(trimmed)) csharpScore += 2;
+
+    if (csharpScore >= 5) {
+      return 'csharp';
+    }
+
+    // Go - Package and func keywords
+    const goPatterns = {
+      package: /^package\s+\w+/m,
+      funcKeyword: /\bfunc\s+(\w+\s*)?\(/,
+      imports: /^import\s+\(/m,
+      goTypes: /\b(string|int|bool|byte|rune|error|interface\{\})\b/,
+      defer: /\bdefer\s+\w+/,
+      goroutine: /\bgo\s+\w+\(/
+    };
+
+    let goScore = 0;
+    if (goPatterns.package.test(trimmed)) goScore += 3;
+    if (goPatterns.funcKeyword.test(trimmed)) goScore += 2;
+    if (goPatterns.imports.test(trimmed)) goScore += 2;
+    if (goPatterns.goTypes.test(trimmed)) goScore += 1;
+    if (goPatterns.defer.test(trimmed)) goScore += 2;
+    if (goPatterns.goroutine.test(trimmed)) goScore += 3;
+
+    if (goScore >= 5) {
+      return 'go';
+    }
+
+    // Rust - fn, let, impl patterns
+    const rustPatterns = {
+      fnKeyword: /\bfn\s+\w+/,
+      letMut: /\blet\s+(mut\s+)?\w+/,
+      impl: /\bimpl\s+(\w+\s+for\s+)?\w+/,
+      useKeyword: /^use\s+[\w:]+;/m,
+      macro: /\w+!/,
+      ownership: /&(mut\s+)?\w+|&str/
+    };
+
+    let rustScore = 0;
+    if (rustPatterns.fnKeyword.test(trimmed)) rustScore += 2;
+    if (rustPatterns.letMut.test(trimmed)) rustScore += 2;
+    if (rustPatterns.impl.test(trimmed)) rustScore += 3;
+    if (rustPatterns.useKeyword.test(trimmed)) rustScore += 2;
+    if (rustPatterns.macro.test(trimmed)) rustScore += 2;
+    if (rustPatterns.ownership.test(trimmed)) rustScore += 2;
+
+    if (rustScore >= 5) {
+      return 'rust';
+    }
+
+    // Ruby - def/end, specific syntax
+    const rubyPatterns = {
+      defEnd: /\bdef\s+\w+[\s\S]*?\bend\b/,
+      symbols: /:\w+/,
+      puts: /\bputs\s+/,
+      instanceVar: /@\w+/,
+      blocks: /\bdo\s+\|[\w,\s]+\||\{[\s\S]*?\|[\w,\s]+\|/,
+      require: /^require\s+['"][\w\/]+['"]/m
+    };
+
+    let rubyScore = 0;
+    if (rubyPatterns.defEnd.test(trimmed)) rubyScore += 3;
+    if (rubyPatterns.symbols.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.puts.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.instanceVar.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.blocks.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.require.test(trimmed)) rubyScore += 1;
+
+    if (rubyScore >= 5) {
+      return 'ruby';
+    }
+
+    // Swift - func, var, let with Swift-specific patterns
+    const swiftPatterns = {
+      funcKeyword: /\bfunc\s+\w+/,
+      varLet: /\b(var|let)\s+\w+/,
+      importFoundation: /^import\s+(Foundation|UIKit|SwiftUI)/m,
+      optionals: /\w+\?|\w+!/,
+      guardLet: /\bguard\s+let\s+/,
+      swiftPrint: /\bprint\(/
+    };
+
+    let swiftScore = 0;
+    if (swiftPatterns.funcKeyword.test(trimmed)) swiftScore += 2;
+    if (swiftPatterns.varLet.test(trimmed)) swiftScore += 1;
+    if (swiftPatterns.importFoundation.test(trimmed)) swiftScore += 3;
+    if (swiftPatterns.optionals.test(trimmed)) swiftScore += 2;
+    if (swiftPatterns.guardLet.test(trimmed)) swiftScore += 3;
+    if (swiftPatterns.swiftPrint.test(trimmed)) swiftScore += 1;
+
+    if (swiftScore >= 5) {
+      return 'swift';
+    }
+
+    // Kotlin - fun, val, var
+    const kotlinPatterns = {
+      funKeyword: /\bfun\s+\w+/,
+      valVar: /\b(val|var)\s+\w+/,
+      nullable: /\w+\?/,
+      dataClass: /\bdata\s+class\s+\w+/,
+      companionObject: /\bcompanion\s+object/,
+      kotlinPrint: /\bprintln\(/
+    };
+
+    let kotlinScore = 0;
+    if (kotlinPatterns.funKeyword.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.valVar.test(trimmed)) kotlinScore += 2;
+    if (kotlinPatterns.nullable.test(trimmed)) kotlinScore += 1;
+    if (kotlinPatterns.dataClass.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.companionObject.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.kotlinPrint.test(trimmed)) kotlinScore += 1;
+
+    if (kotlinScore >= 5) {
+      return 'kotlin';
+    }
+
+    // Markdown - Headers, lists, links
+    if (/^#{1,6}\s+\w+/m.test(trimmed) ||
+        /^\*\s+\w+/m.test(trimmed) ||
+        /\[.+\]\(.+\)/.test(trimmed)) {
+      return 'markdown';
+    }
+
+    // YAML - Key-value with colons, indentation-based
+    if (/^\w+:\s*$/m.test(trimmed) && /^\s+\w+:/m.test(trimmed)) {
+      return 'yaml';
+    }
+
+    // If we got here and it has semicolons, curly braces, and parentheses but didn't match specific languages
+    // it might be C/C++ or generic code
+    if (/[{};()]/.test(trimmed) && /\w+\s*\(/.test(trimmed)) {
+      // Check for C/C++ specific patterns
+      if (/#include\s+[<"]|int\s+main\s*\(|void\s+\w+\(|printf\(|std::/.test(trimmed)) {
+        return /std::|\bcout\b|iostream/.test(trimmed) ? 'cpp' : 'c';
+      }
+    }
+
+    // Unable to detect with confidence - return empty string
+    // Better to show no language than misclassify
+    return '';
+  },
+
   extractBlocks(root, depth = 0) {
     const blocks = [];
 
@@ -3875,15 +4683,61 @@ const Harvester = {
       if (!node || node.nodeType !== 1) return;
 
       const tag = node.tagName.toLowerCase();
-      
-      // Code blocks
+
+      // Code blocks - Handle both <pre><code> and ChatGPT's div-based structure
       if (tag === 'pre') {
         const code = node.querySelector('code') || node;
-        const language = (code.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
+        let language = (code.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
         const text = code.textContent || '';
+
+        // If no language from className, try smart detection
+        if (!language && text.trim()) {
+          language = this.detectCodeLanguage(text);
+        }
+
         if (text.trim()) {
           blocks.push({ kind: 'code', language, text });
           return true;
+        }
+      }
+
+      // ChatGPT's modern code block structure (div-based with header)
+      // Structure: <div class="contain-inline-size..."><div class="flex...">language</div>...<code>...</code></div>
+      if (tag === 'div' && node.classList.contains('contain-inline-size')) {
+        // Look for code element (might or might not have language- class)
+        const codeEl = node.querySelector('code');
+        if (codeEl) {
+          let language = '';
+
+          // Priority 1: Check ChatGPT's header div for language label (most reliable)
+          // This is what ChatGPT displays to users, so it's the ground truth
+          const headerDiv = node.querySelector('div.flex.items-center[class*="rounded-t"]');
+          if (headerDiv) {
+            const labelText = headerDiv.textContent?.trim() || '';
+            // Validate it looks like a language name (short, no spaces or only "Copy code")
+            // Filter out UI text like "Copy code"
+            const cleanLabel = labelText.replace(/copy code/gi, '').trim();
+            if (cleanLabel && cleanLabel.length < 20 && /^[a-z0-9+#.-]+$/i.test(cleanLabel)) {
+              language = cleanLabel.toLowerCase();
+            }
+          }
+
+          // Priority 2: Check className if no header label found
+          if (!language) {
+            language = (codeEl.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
+          }
+
+          const text = codeEl.textContent || '';
+
+          // Priority 3: Smart detection if still no language
+          if (!language && text.trim()) {
+            language = this.detectCodeLanguage(text);
+          }
+
+          if (text.trim()) {
+            blocks.push({ kind: 'code', language, text });
+            return true;
+          }
         }
       }
       
@@ -4493,7 +5347,6 @@ const App = {
   async openExportPanel() {
     // Prevent multiple concurrent requests
     if (this.isProcessing) {
-      console.log('[ChatGPT Export] Already processing, ignoring duplicate request');
       return;
     }
 
@@ -4554,10 +5407,8 @@ const App = {
       `;
       document.head.appendChild(style);
     }
-    
+
     this.setupRouteWatcher();
-    
-    console.log(`[ChatGPT Export v${CFG.version}] Extension initialized (Enhanced)`);
   },
 
   setupRouteWatcher() {
