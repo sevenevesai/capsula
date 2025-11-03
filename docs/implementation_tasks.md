@@ -5,9 +5,10 @@
 ### ✅ COMPLETED TASKS
 
 - **Task 1**: Fix Thinking Detection - Use Structural Selectors ✓
-  - Status: COMPLETE (was already done previously)
-  - File: `/home/user/capsula/content.js` lines 3652-3741
-  - Implementation: Uses `.relative.my-1.min-h-6` selector, preserves multi-stage thinking
+  - Status: COMPLETE (was already done previously, enhanced 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3969-4083
+  - Implementation: Multi-strategy detection with 3 approaches, preserves multi-stage thinking
+  - Note: Enhanced from basic selector to comprehensive detection (see Enhancement below)
 
 - **Task 2**: Fix Role Detection - Never Use Thinking as Fallback ✓
   - Status: COMPLETE (implemented 2025-11-03)
@@ -51,6 +52,21 @@
     * Added canvas artifacts section (total, documents, code)
     * Added file attachments section (total + breakdown by type)
     * Enhanced thinking section with multi-stage stats
+
+- **Enhancement**: Robust Thinking Detection (Multi-Strategy) ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 3933-4083
+  - Problem: Original selector `.relative.my-1.min-h-6` was too strict, missing:
+    * Canvas-only responses with thinking labels
+    * Multi-stage thinking sequences (5+ stages)
+    * Text patterns like "couple of seconds"
+  - Solution: Implemented multi-strategy detection:
+    * Strategy 1: Flexible class-based selector `div.relative[class*="my-"][class*="min-h"]`
+    * Strategy 2: Content-based detection searching for thinking text patterns
+    * Strategy 3: Future-proof explicit marker detection
+    * Enhanced `parseThinkingTime()` to handle "few seconds", "couple seconds", "moment"
+    * Added comprehensive false-positive filters
+    * Added console logging for debugging
 
 ### 🔄 PENDING TASKS
 
