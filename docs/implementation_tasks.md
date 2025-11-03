@@ -29,15 +29,33 @@
   - File: `/home/user/capsula/content.js` lines 3562-3650
   - Implementation: Proper sequence with role → canvas/attachment → thinking → content
 
+### ✅ ADDITIONAL COMPLETED TASKS
+
+- **Task 6**: Update Export Formats with New Metadata ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 2506-2870
+  - Changes:
+    * CRITICAL FIX: Thinking labels now appear AFTER role header
+    * Added file attachment markers (📎)
+    * Added canvas artifact markers (📋)
+    * Multi-stage thinking properly displayed
+    * Added parseThinkingTime() method for accurate time tracking
+    * Enhanced HTML with styled markers and dark mode support
+
+- **Task 7**: Update Dashboard Metrics ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - Location: `content.js` lines 2928-3652
+  - Changes:
+    * Fixed thinking time calculation (was 0s, now accurate)
+    * Added multi-stage thinking metrics
+    * Added canvas artifacts section (total, documents, code)
+    * Added file attachments section (total + breakdown by type)
+    * Enhanced thinking section with multi-stage stats
+
 ### 🔄 PENDING TASKS
 
-- **Task 6**: Update Export Formats with New Metadata
-  - Status: TODO
-  - Requires: HTML and Markdown export updates for canvas, attachments, multi-stage thinking
-
-- **Task 7**: Update Dashboard Metrics
-  - Status: TODO
-  - Requires: Add metrics for canvas artifacts, attachments, thinking sequences
+- **Testing**: Verify all fixes work with actual ChatGPT exports
+- **Code Block Count Investigation**: Debug why code blocks may be undercounted
 
 ### 📝 Testing Status
 
