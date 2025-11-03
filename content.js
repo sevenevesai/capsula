@@ -3953,9 +3953,14 @@ const Harvester = {
       return parseInt(minMatch[1]) * 60;
     }
 
-    // Pattern 4: "a few seconds" / "a moment" / "briefly"
-    if (/few|moment|brief/i.test(text)) {
+    // Pattern 4: "a few seconds" / "a couple seconds" / "a moment" / "briefly"
+    if (/few\s+seconds?|couple\s+(?:of\s+)?seconds?/i.test(text)) {
       return 3; // Estimate 3 seconds
+    }
+
+    // Pattern 5: "a moment" / "briefly"
+    if (/\b(?:a\s+)?moment|brief(?:ly)?/i.test(text)) {
+      return 2; // Estimate 2 seconds
     }
 
     return 0;
@@ -3965,77 +3970,95 @@ const Harvester = {
     const labels = [];
     const expanderSelectors = [];
     const seenTexts = new Set();
+    const processedDivs = new Set();
 
-    // CRITICAL FIX: Only look in STRUCTURAL thinking div locations
-    // ChatGPT places thinking indicators in specific divs with these classes
-    // Located ABOVE the message content, not within it
-    // This prevents false positives from user messages containing "Thought for" text
+    // ENHANCED FIX: Use multiple strategies to catch ALL thinking indicators
+    // ChatGPT thinking labels appear in divs ABOVE message content with specific patterns
 
-    // Primary selector: the specific thinking indicator divs
-    const thinkingDivs = container.querySelectorAll('.relative.my-1.min-h-6');
+    // Strategy 1: Primary selector - the typical thinking div structure
+    const strategy1Divs = container.querySelectorAll('div.relative[class*="my-"][class*="min-h"]');
 
-    // Fallback: also check for other common thinking indicator patterns
-    // (in case ChatGPT updates their class structure)
-    const fallbackThinkingDivs = container.querySelectorAll('[class*="thinking"], [data-thinking]');
+    // Strategy 2: Find divs that contain thinking-like text (catches variations)
+    const allRelativeDivs = container.querySelectorAll('div.relative');
+    const strategy2Divs = Array.from(allRelativeDivs).filter(div => {
+      // Must be small divs (thinking indicators are compact)
+      if (div.offsetHeight > 100) return false;
 
-    // Combine both sets, avoiding duplicates
-    const allThinkingDivs = new Set([...thinkingDivs, ...fallbackThinkingDivs]);
+      // Check if it contains thinking text
+      const text = div.textContent || '';
+      const hasThinkingText = /Thought for|Thinking for|Processing for|Stopped thinking|Analyzing|Working on/i.test(text);
 
-    allThinkingDivs.forEach((thinkingDiv, index) => {
-      // Look for the thinking text span within this specific div
-      // Common patterns: spans with text-token-text-secondary class or similar
-      const thinkingSpans = thinkingDiv.querySelectorAll(
-        'span.text-token-text-secondary, span[class*="text-token-text"], span[class*="text-"]'
-      );
+      // Exclude if it's inside message content
+      if (div.hasAttribute('data-message-author-role')) return false;
+      if (div.closest('[data-message-author-role]')?.contains(div)) return false;
 
-      thinkingSpans.forEach(thinkingSpan => {
-        const text = (thinkingSpan.textContent || '').trim();
+      return hasThinkingText;
+    });
+
+    // Strategy 3: Explicit thinking markers (future-proof)
+    const strategy3Divs = container.querySelectorAll('[class*="thinking"], [data-thinking]');
+
+    // Combine all strategies, removing duplicates
+    const allDivs = [...strategy1Divs, ...strategy2Divs, ...strategy3Divs];
+    const uniqueDivs = allDivs.filter(div => {
+      if (processedDivs.has(div)) return false;
+      processedDivs.add(div);
+      return true;
+    });
+
+    console.log('[Thinking Detection] Scanning', uniqueDivs.length, 'candidate divs in container');
+
+    uniqueDivs.forEach((thinkingDiv) => {
+      // Search ALL spans - be comprehensive
+      const allSpans = thinkingDiv.querySelectorAll('span');
+
+      allSpans.forEach(span => {
+        let text = (span.textContent || '').trim();
+
+        // Skip empty or already seen
         if (!text || seenTexts.has(text)) return;
 
-        // Check if this matches thinking patterns
-        let matchedType = null;
+        // Clean up text (remove SVG content markers, extra whitespace)
+        text = text.replace(/<svg.*?<\/svg>/gi, '').trim();
 
-        // Check time patterns first (most reliable)
-        for (const pattern of CFG.thinkingPatterns.timePatterns) {
-          if (pattern.test(text)) {
-            matchedType = 'time';
-            break;
-          }
-        }
+        // Pattern matching - be comprehensive
+        const isTimePattern = /Thought for|Thinking for|Processing for/i.test(text);
+        const isStatePattern = /Stopped thinking|Stopped|Analyzing|Processing|Working|Calculating|Reading|Planning/i.test(text);
 
-        // If no time pattern, check state patterns
-        if (!matchedType) {
-          for (const pattern of CFG.thinkingPatterns.statePatterns) {
-            if (pattern.test(text)) {
-              matchedType = 'state';
-              break;
-            }
-          }
-        }
+        // Filter out false positives
+        // Skip if too long (thinking labels are short, < 50 chars typically)
+        if (text.length > 100) return;
 
-        if (matchedType) {
+        // Skip if has multiple sentences
+        if ((text.match(/\.\s+[A-Z]/g) || []).length > 0) return;
+
+        // Skip common UI elements
+        if (/^(You|ChatGPT|User|Assistant|Copy|Edit|Regenerate|Download|Good response|Bad response)$/i.test(text)) return;
+
+        // Match!
+        if (isTimePattern || isStatePattern) {
+          const matchedType = isTimePattern ? 'time' : 'state';
+
           labels.push({
             text: text,
             order: labels.length,  // Preserve sequence for multi-stage thinking
             type: matchedType,
-            seconds: this.parseThinkingTime(text)  // TASK 6: Add time parsing
+            seconds: this.parseThinkingTime(text)
           });
           seenTexts.add(text);
+
+          console.log(`[Thinking Detection] Found #${labels.length}:`, text, `(${matchedType}, ${this.parseThinkingTime(text)}s)`);
         }
       });
 
-      // Check for expander button in this thinking div
-      // Scope the search to this specific div to avoid false positives
-      const button = thinkingDiv.querySelector(
-        'button[aria-expanded], button[role="button"]'
-      );
+      // Check for expander button
+      const button = thinkingDiv.querySelector('button[aria-expanded], button[role="button"]');
 
       if (button) {
         const ariaExpanded = button.getAttribute('aria-expanded');
         const hasRadixId = button.id && button.id.startsWith('radix-');
         const buttonText = (button.textContent || '').toLowerCase();
 
-        // Only include if it's actually an expander (collapsed state)
         if (ariaExpanded === 'false' || hasRadixId ||
             /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
           const selector = this.getElementSelector(button);
@@ -4045,6 +4068,8 @@ const Harvester = {
         }
       }
     });
+
+    console.log('[Thinking Detection] Total labels found:', labels.length, 'Total time:', Math.round(labels.reduce((sum, label) => sum + (label.seconds || 0), 0)), 's');
 
     // TASK 6: Calculate total thinking time
     const totalSeconds = labels.reduce((sum, label) => sum + (label.seconds || 0), 0);
