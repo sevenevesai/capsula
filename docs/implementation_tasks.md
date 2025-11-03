@@ -1,5 +1,52 @@
 # Implementation Tasks: ChatGPT Export Fixes
 
+## Implementation Status (Updated: 2025-11-03)
+
+### ✅ COMPLETED TASKS
+
+- **Task 1**: Fix Thinking Detection - Use Structural Selectors ✓
+  - Status: COMPLETE (was already done previously)
+  - File: `/home/user/capsula/content.js` lines 3652-3741
+  - Implementation: Uses `.relative.my-1.min-h-6` selector, preserves multi-stage thinking
+
+- **Task 2**: Fix Role Detection - Never Use Thinking as Fallback ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3822-3886
+  - Implementation: Checks `article[data-turn]` first, removed thinking-based detection
+
+- **Task 3**: Add Canvas Artifact Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3888-3942
+  - Implementation: New `detectCanvasArtifact()` method with 3 detection strategies
+
+- **Task 4**: Add File Attachment Detection ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3944-3988
+  - Implementation: New `detectFileAttachment()` method with category detection
+
+- **Task 5**: Update Message Processing Order ✓
+  - Status: COMPLETE (implemented 2025-11-03)
+  - File: `/home/user/capsula/content.js` lines 3562-3650
+  - Implementation: Proper sequence with role → canvas/attachment → thinking → content
+
+### 🔄 PENDING TASKS
+
+- **Task 6**: Update Export Formats with New Metadata
+  - Status: TODO
+  - Requires: HTML and Markdown export updates for canvas, attachments, multi-stage thinking
+
+- **Task 7**: Update Dashboard Metrics
+  - Status: TODO
+  - Requires: Add metrics for canvas artifacts, attachments, thinking sequences
+
+### 📝 Testing Status
+
+- Manual testing with sample HTML files: PENDING
+- Integration testing: PENDING
+- Export validation: PENDING
+
+---
+
 ## Overview
 
 Based on analysis of actual ChatGPT DOM structure and the current extraction code, this document provides **exact code changes** to fix all identified issues. Each task includes:
@@ -8,11 +55,17 @@ Based on analysis of actual ChatGPT DOM structure and the current extraction cod
 - Fixed code
 - Testing requirements
 
-All tasks reference `/mnt/user-data/uploads/contentjs.txt` (the current extraction code).
+All tasks reference the current extraction code in `/home/user/capsula/content.js`.
 
 ---
 
 ## Task 1: Fix Thinking Detection - Use Structural Selectors
+
+### ✅ STATUS: COMPLETE (Previously Implemented)
+**Location**: `content.js` lines 3652-3741
+**Result**: Method now uses structural selectors only, preventing false positives
+
+---
 
 ### Problem
 **Lines 3652-3717**: `detectThinkingStates()` recursively searches ALL text nodes in the container, which causes:
@@ -149,6 +202,17 @@ detectThinkingStates(container) {
 
 ## Task 2: Fix Role Detection - Never Use Thinking as Fallback
 
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3822-3886
+**Changes**:
+- Added `article[data-turn]` as Priority 1 check
+- Removed lines 3832-3833 (thinking-based role detection)
+- Added `.user-message-bubble-color` detection
+- Improved content-based heuristics
+- Added warning logging for uncertain cases
+
+---
+
 ### Problem
 **Lines 3798-3818**: `detectRole()` uses thinking detection as a fallback to determine role, which can cause user messages to be misidentified as assistant if they happen to contain thinking-like text.
 
@@ -264,6 +328,16 @@ detectRole(el) {
 ---
 
 ## Task 3: Add Canvas Artifact Detection
+
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3888-3942
+**Changes**:
+- Added new `detectCanvasArtifact()` method
+- Implements 3 detection strategies (textdoc ID, code canvas, general popover)
+- Extracts title, type, and content element
+- Returns metadata object or null
+
+---
 
 ### Problem
 The current code doesn't detect or mark Canvas artifacts (documents, code blocks generated in canvas interface). These should be identified and marked with metadata.
@@ -393,6 +467,17 @@ turnContainers.forEach((container, index) => {
 
 ## Task 4: Add File Attachment Detection
 
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3944-3988
+**Changes**:
+- Added new `detectFileAttachment()` method
+- Only processes user messages
+- Detects file preview structure with border styling
+- Extracts fileName, fileType, and categorizes by type
+- Returns metadata object or null
+
+---
+
 ### Problem
 User messages with file attachments (images, PDFs, zips) are not detected or marked with metadata about the attached file.
 
@@ -517,6 +602,24 @@ if (msg.hasAttachment) {
 ---
 
 ## Task 5: Update Message Processing Order
+
+### ✅ STATUS: COMPLETE (Implemented 2025-11-03)
+**Location**: `content.js` lines 3562-3650
+**Changes**:
+- Updated `collectAllMessages()` method with proper detection sequence
+- Role detection runs FIRST (not dependent on content)
+- Canvas/attachment detection based on role (assistant/user)
+- Thinking detection ONLY for assistant messages
+- Added all new metadata fields to message object
+- Improved validation logic
+
+**New Message Metadata Fields**:
+- `thinkingSequence`: Array for multi-stage thinking
+- `canvas`, `isCanvas`, `canvasTitle`, `canvasType`: Canvas artifact metadata
+- `attachment`, `hasAttachment`: File attachment metadata
+- `model`: Assistant model information
+
+---
 
 ### Problem
 The current order of detection can cause issues. Need to ensure role is determined first, then type-specific features.

@@ -3560,48 +3560,92 @@ const Harvester = {
   },
 
   collectAllMessages() {
+    // TASK 5: Updated message processing order
+    // Proper sequence: role → canvas/attachment → thinking → content → metadata
     const messages = [];
     const processedElements = new Set();
-    
+
     const turnContainers = this.findAllTurnContainers();
-    
+
     turnContainers.forEach((container, index) => {
       if (processedElements.has(container)) return;
       processedElements.add(container);
-      
+
+      // STEP 1: Determine role FIRST (never depends on content)
       const role = this.detectRole(container);
-      const thinkingInfo = this.detectThinkingStates(container);
+
+      // STEP 2: Type-specific detection (depends on role)
+      // Canvas artifacts only for assistant messages
+      const canvasInfo = role === 'assistant' ? this.detectCanvasArtifact(container) : null;
+      // File attachments only for user messages
+      const fileAttachment = role === 'user' ? this.detectFileAttachment(container) : null;
+
+      // STEP 3: Thinking detection (ONLY for assistant messages, uses structural selectors)
+      const thinkingInfo = role === 'assistant'
+        ? this.detectThinkingStates(container)
+        : { labels: [], expandable: false };
+
+      // STEP 4: Content validation
       const hasContent = this.hasActualContent(container);
-      
-      if (!hasContent && !thinkingInfo.labels.length) return;
-      
-      const contentNode = this.findContentNode(container) || container;
+
+      // STEP 5: Skip if no content, no thinking, no canvas, no attachment
+      if (!hasContent && !canvasInfo && !fileAttachment && !thinkingInfo.labels.length) {
+        console.debug('[ChatGPT Export] Skipping empty message', container);
+        return;
+      }
+
+      // STEP 6: Extract content (use canvas content if present)
+      const contentNode = canvasInfo
+        ? canvasInfo.contentElement
+        : (this.findContentNode(container) || container);
+
       const clone = contentNode.cloneNode(true);
       this.sanitizeClone(clone);
-      
+
       const blocks = this.extractBlocks(clone);
       const plainText = (clone.textContent || '').replace(/\s+\n/g, '\n').trim();
-      
+
+      // STEP 7: Build message object with all metadata
       const message = {
         id: container.id || `msg-${messages.length + 1}`,
         index: messages.length,
         role: role,
+
+        // Thinking metadata (preserves multi-stage sequences)
         thinking: thinkingInfo.labels.length > 0 ? thinkingInfo : null,
-        isThinking: thinkingInfo.labels.length > 0 && !hasContent,
-        incomplete: thinkingInfo.labels.some(l => 
-          /stopped|paused|failed/i.test(l.text)
-        ),
-        blocks: blocks.length ? blocks : (plainText && !thinkingInfo.labels.length ? 
+        thinkingSequence: thinkingInfo.labels.length > 1 ? thinkingInfo.labels : null,
+        isThinking: thinkingInfo.labels.length > 0 && !hasContent && !canvasInfo,
+        incomplete: thinkingInfo.labels.some(l => /stopped|paused|failed/i.test(l.text)),
+
+        // Canvas metadata
+        canvas: canvasInfo || null,
+        isCanvas: canvasInfo !== null,
+        canvasTitle: canvasInfo?.title || null,
+        canvasType: canvasInfo?.type || null,
+
+        // File attachment metadata
+        attachment: fileAttachment || null,
+        hasAttachment: fileAttachment !== null,
+
+        // Content
+        blocks: blocks.length ? blocks : (plainText && !thinkingInfo.labels.length ?
           [{ kind: 'para', md: plainText }] : []),
         plain: { text: plainText || '' },
-        timestamp: new Date().toISOString()
+
+        // Metadata
+        timestamp: new Date().toISOString(),
+        model: role === 'assistant' ? this.detectModel() : null
       };
-      
-      if (message.plain.text || message.blocks.length > 0 || thinkingInfo.labels.length > 0) {
+
+      // STEP 8: Final validation and add to messages
+      if (message.plain.text || message.blocks.length > 0 || message.thinking ||
+          message.canvas || message.attachment) {
         messages.push(message);
+      } else {
+        console.warn('[ChatGPT Export] Skipping message with no extractable content', container);
       }
     });
-    
+
     return messages;
   },
 
@@ -3820,26 +3864,171 @@ const Harvester = {
   },
 
   detectRole(el) {
+    // TASK 2 FIX: Never use thinking as role indicator
+    // Priority 1: Check article-level data-turn attribute (most reliable)
+    // This is the primary way ChatGPT marks message roles
+    const article = el.closest('article[data-turn]');
+    if (article) {
+      const turn = article.getAttribute('data-turn');
+      if (turn === 'user' || turn === 'assistant') {
+        return turn;
+      }
+    }
+
+    // Priority 2: Check message-level data-message-author-role on current element
     const attr = el.getAttribute('data-message-author-role');
-    if (attr) return attr;
+    if (attr === 'user' || attr === 'assistant') return attr;
 
+    // Priority 3: Check nested message div
     const nested = el.querySelector('[data-message-author-role]');
-    if (nested) return nested.getAttribute('data-message-author-role');
+    if (nested) {
+      const nestedRole = nested.getAttribute('data-message-author-role');
+      if (nestedRole === 'user' || nestedRole === 'assistant') {
+        return nestedRole;
+      }
+    }
 
+    // Priority 4: Check parent message div
     const parent = el.closest('[data-message-author-role]');
-    if (parent) return parent.getAttribute('data-message-author-role');
+    if (parent) {
+      const parentRole = parent.getAttribute('data-message-author-role');
+      if (parentRole === 'user' || parentRole === 'assistant') {
+        return parentRole;
+      }
+    }
 
-    const thinkingInfo = this.detectThinkingStates(el);
-    if (thinkingInfo.labels.length > 0) return 'assistant';
+    // CRITICAL FIX: Removed thinking-based role detection
+    // Thinking labels should NEVER determine role
+    // This prevents user messages containing "Thought for" text from being misidentified
 
+    // Priority 5: Content-based heuristics (least reliable, use only as last resort)
     const text = (el.textContent || '').toLowerCase();
-    if (text.startsWith('you:') || el.querySelector('img[alt*="User"]')) return 'user';
-    if (text.includes('chatgpt') || el.querySelector('img[alt*="ChatGPT"]')) return 'assistant';
 
+    // Check for explicit role indicators in text
+    if (text.startsWith('you said:') || text.startsWith('you:')) return 'user';
+    if (text.startsWith('chatgpt said:') || text.startsWith('chatgpt:')) return 'assistant';
+
+    // Check for user/assistant avatars or images
+    if (el.querySelector('img[alt*="User" i]')) return 'user';
+    if (el.querySelector('img[alt*="ChatGPT" i], img[alt*="Assistant" i]')) return 'assistant';
+
+    // Check for user bubble styling (specific to user messages)
+    if (el.querySelector('.user-message-bubble-color')) return 'user';
+
+    // Check for layout alignment (user messages typically right-aligned)
     const style = window.getComputedStyle(el);
-    if (style.textAlign === 'right' || style.justifyContent === 'flex-end') return 'user';
+    if (style.textAlign === 'right' || style.justifyContent === 'flex-end') {
+      // Double-check this isn't an assistant message with right-aligned content
+      if (!el.querySelector('.markdown.prose')) {
+        return 'user';
+      }
+    }
 
+    // Default to assistant if uncertain (safer than defaulting to user)
+    console.warn('[ChatGPT Export] Could not reliably detect role for element, defaulting to assistant', el);
     return 'assistant';
+  },
+
+  detectCanvasArtifact(container) {
+    // TASK 3: Detect Canvas artifacts (documents, code blocks in canvas interface)
+    // Canvas artifacts should be identified and marked with metadata
+    // These are assistant-generated documents that appear in a special canvas UI
+
+    // Method 1: Check for textdoc-message ID (document canvas)
+    // Canvas documents have specific ID pattern: "textdoc-message-[hash]"
+    const canvasDiv = container.querySelector('[id^="textdoc-message-"]');
+    if (canvasDiv) {
+      // Extract canvas metadata
+      const titleEl = canvasDiv.querySelector('.truncate.text-token-text-primary.font-semibold');
+      const title = titleEl?.textContent?.trim() || 'Untitled Canvas Document';
+
+      // Canvas content is in ProseMirror editor
+      const contentEl = canvasDiv.querySelector('.ProseMirror, [class*="_main_"]');
+
+      return {
+        isCanvas: true,
+        type: 'document',
+        title: title,
+        contentElement: contentEl,
+        id: canvasDiv.id
+      };
+    }
+
+    // Method 2: Check for code canvas (different structure)
+    // Code canvas has popover with rounded corners and code content
+    const codeCanvas = container.querySelector('.popover.rounded-3xl [class*="code-"]');
+    if (codeCanvas) {
+      const titleEl = codeCanvas.closest('.popover').querySelector('.font-semibold');
+      const title = titleEl?.textContent?.trim() || 'Code Canvas';
+
+      return {
+        isCanvas: true,
+        type: 'code',
+        title: title,
+        contentElement: codeCanvas
+      };
+    }
+
+    // Method 3: General canvas detection (fallback)
+    // Looks for the general canvas popover structure with ProseMirror editor
+    const popoverCanvas = container.querySelector('.popover.bg-token-bg-primary.rounded-3xl');
+    if (popoverCanvas && popoverCanvas.querySelector('.ProseMirror')) {
+      return {
+        isCanvas: true,
+        type: 'unknown',
+        title: 'Canvas Artifact',
+        contentElement: popoverCanvas
+      };
+    }
+
+    // No canvas artifact found
+    return null;
+  },
+
+  detectFileAttachment(container) {
+    // TASK 4: Detect file attachments in user messages
+    // Only user messages can have file attachments (images, PDFs, zips, etc.)
+
+    // Only user messages can have file attachments
+    const role = this.detectRole(container);
+    if (role !== 'user') return null;
+
+    // Look for file preview structure
+    // File attachments have a specific bordered container with file info
+    const filePreview = container.querySelector('.border-token-border-default.border.rounded-xl');
+    if (!filePreview) return null;
+
+    // Extract file metadata
+    const fileNameEl = filePreview.querySelector('.truncate.font-semibold');
+    const fileTypeEl = filePreview.querySelector('.text-token-text-secondary.truncate');
+
+    const fileName = fileNameEl?.textContent?.trim();
+    const fileType = fileTypeEl?.textContent?.trim();
+
+    if (!fileName) return null;
+
+    // Determine file category from type string or extension
+    let category = 'file';
+    const lowerType = (fileType || '').toLowerCase();
+    const lowerName = (fileName || '').toLowerCase();
+
+    if (lowerType.includes('image') || /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(lowerName)) {
+      category = 'image';
+    } else if (lowerType.includes('pdf') || lowerName.endsWith('.pdf')) {
+      category = 'pdf';
+    } else if (lowerType.includes('zip') || lowerType.includes('archive') || /\.(zip|rar|7z|tar|gz)$/i.test(lowerName)) {
+      category = 'archive';
+    } else if (lowerType.includes('text') || lowerType.includes('document') || /\.(txt|doc|docx|md)$/i.test(lowerName)) {
+      category = 'document';
+    } else if (lowerType.includes('code') || lowerType.includes('script') || /\.(js|py|java|cpp|cs|ts)$/i.test(lowerName)) {
+      category = 'code';
+    }
+
+    return {
+      fileName: fileName,
+      fileType: fileType,
+      category: category
+    };
   },
 
   sanitizeClone(root) {
