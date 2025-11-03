@@ -4349,6 +4349,333 @@ const Harvester = {
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
   },
 
+  detectCodeLanguage(code) {
+    // Smart language detection based on code patterns
+    // Only returns a language when confident - better to return '' than misclassify
+
+    if (!code || !code.trim()) return '';
+
+    const trimmed = code.trim();
+    const lines = trimmed.split('\n');
+    const firstLine = lines[0].trim();
+    const codeLength = trimmed.length;
+
+    // Too short to reliably detect (unless it's JSON)
+    if (codeLength < 15 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      return '';
+    }
+
+    // JSON - Very distinct structure
+    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) &&
+        (trimmed.endsWith('}') || trimmed.endsWith(']'))) {
+      // Check for JSON-like patterns: "key": value
+      if (/"\w+"\s*:\s*[{\["\d]/.test(trimmed)) {
+        return 'json';
+      }
+    }
+
+    // XML/HTML - Very clear with tags
+    if (/<\/?[\w-]+[^>]*>/i.test(trimmed)) {
+      // Check if it's HTML specifically (has DOCTYPE, html, head, body, common HTML tags)
+      if (/<!DOCTYPE html|<html|<head|<body|<div|<span|<p>|<a\s/i.test(trimmed)) {
+        return 'html';
+      }
+      // Otherwise it's XML
+      if (/<\?xml|<[\w-]+:[\w-]+/i.test(trimmed)) {
+        return 'xml';
+      }
+      // Generic HTML if has common tags
+      if (/<(div|span|p|a|img|ul|ol|li|h[1-6]|table|tr|td|form|input|button)[>\s]/i.test(trimmed)) {
+        return 'html';
+      }
+      return 'xml';
+    }
+
+    // CSS - Selectors with properties
+    if (/[.#]?[\w-]+\s*{[\s\S]*?[a-z-]+\s*:\s*[^}]+;/i.test(trimmed)) {
+      // Confirm with multiple CSS patterns
+      if (/[:{};]/.test(trimmed) && /[a-z-]+\s*:\s*[^}]+;/i.test(trimmed)) {
+        return 'css';
+      }
+    }
+
+    // PHP - Starts with <?php
+    if (/^<\?php/i.test(trimmed)) {
+      return 'php';
+    }
+
+    // SQL - Multiple SQL keywords
+    const sqlKeywords = /\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|GROUP BY|ORDER BY|HAVING|CREATE|DROP|ALTER|TABLE)\b/gi;
+    const sqlMatches = (trimmed.match(sqlKeywords) || []).length;
+    if (sqlMatches >= 2) {
+      return 'sql';
+    }
+
+    // Shell/Bash - Shebang or common shell patterns
+    if (/^#!\/bin\/(ba)?sh|^#!/.test(firstLine)) {
+      return 'bash';
+    }
+    // Multiple shell commands
+    const shellCommands = /\b(echo|cd|ls|grep|awk|sed|cat|mkdir|rm|cp|mv|chmod|export|source)\b/g;
+    const shellMatches = (trimmed.match(shellCommands) || []).length;
+    if (shellMatches >= 3 || /^(echo|cd|ls|export)\s+/m.test(trimmed)) {
+      return 'bash';
+    }
+
+    // Python - Multiple Python-specific patterns
+    const pythonPatterns = {
+      defClass: /^(def|class)\s+\w+/m,
+      imports: /^(from|import)\s+\w+/m,
+      decorators: /^@\w+/m,
+      selfParam: /\bdef\s+\w+\(self/,
+      print: /\bprint\s*\(/,
+      ifName: /if\s+__name__\s*==\s*['"]__main__['"]/,
+      // No semicolons at end of lines (key differentiator from JS/Java/C#)
+      noSemicolons: !/;\s*$/m.test(lines.slice(0, 10).join('\n'))
+    };
+
+    let pythonScore = 0;
+    if (pythonPatterns.defClass.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.imports.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.decorators.test(trimmed)) pythonScore += 3;
+    if (pythonPatterns.selfParam.test(trimmed)) pythonScore += 2;
+    if (pythonPatterns.print.test(trimmed)) pythonScore += 1;
+    if (pythonPatterns.ifName.test(trimmed)) pythonScore += 3;
+    if (pythonPatterns.noSemicolons && (pythonPatterns.defClass.test(trimmed) || pythonPatterns.imports.test(trimmed))) {
+      pythonScore += 2;
+    }
+
+    if (pythonScore >= 4) {
+      return 'python';
+    }
+
+    // TypeScript - Type annotations and TS-specific keywords
+    const tsPatterns = {
+      interface: /\b(interface|type)\s+\w+/,
+      typeAnnotation: /:\s*(string|number|boolean|any|void|unknown|never)\b/,
+      generics: /<[A-Z]\w*>/,
+      asKeyword: /\bas\s+\w+/,
+      typeAlias: /type\s+\w+\s*=/
+    };
+
+    let tsScore = 0;
+    if (tsPatterns.interface.test(trimmed)) tsScore += 3;
+    if (tsPatterns.typeAnnotation.test(trimmed)) tsScore += 2;
+    if (tsPatterns.generics.test(trimmed)) tsScore += 1;
+    if (tsPatterns.asKeyword.test(trimmed)) tsScore += 2;
+    if (tsPatterns.typeAlias.test(trimmed)) tsScore += 3;
+
+    // Also needs JS-like patterns
+    const hasJsPatterns = /\b(const|let|var|function|=>|export|import)\b/.test(trimmed);
+
+    if (tsScore >= 3 && hasJsPatterns) {
+      return 'typescript';
+    }
+
+    // JavaScript - Multiple JS-specific patterns
+    const jsPatterns = {
+      varDecl: /\b(const|let|var)\s+\w+/,
+      arrowFunc: /=>\s*[{(]/,
+      functionKeyword: /\bfunction\s+\w+/,
+      asyncAwait: /\b(async|await)\b/,
+      consoleLog: /console\.(log|error|warn)/,
+      requireImport: /\b(require\(|import\s+.*from)/,
+      semicolons: /;$/m
+    };
+
+    let jsScore = 0;
+    if (jsPatterns.varDecl.test(trimmed)) jsScore += 2;
+    if (jsPatterns.arrowFunc.test(trimmed)) jsScore += 3;
+    if (jsPatterns.functionKeyword.test(trimmed)) jsScore += 1;
+    if (jsPatterns.asyncAwait.test(trimmed)) jsScore += 2;
+    if (jsPatterns.consoleLog.test(trimmed)) jsScore += 2;
+    if (jsPatterns.requireImport.test(trimmed)) jsScore += 2;
+    if (jsPatterns.semicolons.test(trimmed)) jsScore += 1;
+
+    if (jsScore >= 4) {
+      return 'javascript';
+    }
+
+    // Java - Class-based with specific syntax
+    const javaPatterns = {
+      publicClass: /\b(public|private|protected)\s+(static\s+)?(class|interface|enum)\s+\w+/,
+      mainMethod: /public\s+static\s+void\s+main/,
+      systemOut: /System\.(out|err)\.(println?|print)/,
+      imports: /^import\s+[\w.]+;/m,
+      semicolons: /;$/m,
+      types: /\b(String|int|void|boolean|double|float|long|char)\s+\w+/
+    };
+
+    let javaScore = 0;
+    if (javaPatterns.publicClass.test(trimmed)) javaScore += 3;
+    if (javaPatterns.mainMethod.test(trimmed)) javaScore += 3;
+    if (javaPatterns.systemOut.test(trimmed)) javaScore += 2;
+    if (javaPatterns.imports.test(trimmed)) javaScore += 1;
+    if (javaPatterns.types.test(trimmed)) javaScore += 1;
+    if (javaPatterns.semicolons.test(trimmed)) javaScore += 1;
+
+    if (javaScore >= 5) {
+      return 'java';
+    }
+
+    // C# - Namespace and .NET patterns
+    const csharpPatterns = {
+      namespace: /\bnamespace\s+\w+/,
+      usingSystem: /^using\s+(System|System\.)/m,
+      publicClass: /\b(public|private|protected|internal)\s+(static\s+)?(class|interface|struct)\s+\w+/,
+      properties: /\{\s*get;[\s\S]*?set;\s*\}/,
+      linq: /\b(from\s+\w+\s+in\s+|select\s+\w+)/,
+      async: /\basync\s+Task/
+    };
+
+    let csharpScore = 0;
+    if (csharpPatterns.namespace.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.usingSystem.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.publicClass.test(trimmed)) csharpScore += 2;
+    if (csharpPatterns.properties.test(trimmed)) csharpScore += 2;
+    if (csharpPatterns.linq.test(trimmed)) csharpScore += 3;
+    if (csharpPatterns.async.test(trimmed)) csharpScore += 2;
+
+    if (csharpScore >= 5) {
+      return 'csharp';
+    }
+
+    // Go - Package and func keywords
+    const goPatterns = {
+      package: /^package\s+\w+/m,
+      funcKeyword: /\bfunc\s+(\w+\s*)?\(/,
+      imports: /^import\s+\(/m,
+      goTypes: /\b(string|int|bool|byte|rune|error|interface\{\})\b/,
+      defer: /\bdefer\s+\w+/,
+      goroutine: /\bgo\s+\w+\(/
+    };
+
+    let goScore = 0;
+    if (goPatterns.package.test(trimmed)) goScore += 3;
+    if (goPatterns.funcKeyword.test(trimmed)) goScore += 2;
+    if (goPatterns.imports.test(trimmed)) goScore += 2;
+    if (goPatterns.goTypes.test(trimmed)) goScore += 1;
+    if (goPatterns.defer.test(trimmed)) goScore += 2;
+    if (goPatterns.goroutine.test(trimmed)) goScore += 3;
+
+    if (goScore >= 5) {
+      return 'go';
+    }
+
+    // Rust - fn, let, impl patterns
+    const rustPatterns = {
+      fnKeyword: /\bfn\s+\w+/,
+      letMut: /\blet\s+(mut\s+)?\w+/,
+      impl: /\bimpl\s+(\w+\s+for\s+)?\w+/,
+      useKeyword: /^use\s+[\w:]+;/m,
+      macro: /\w+!/,
+      ownership: /&(mut\s+)?\w+|&str/
+    };
+
+    let rustScore = 0;
+    if (rustPatterns.fnKeyword.test(trimmed)) rustScore += 2;
+    if (rustPatterns.letMut.test(trimmed)) rustScore += 2;
+    if (rustPatterns.impl.test(trimmed)) rustScore += 3;
+    if (rustPatterns.useKeyword.test(trimmed)) rustScore += 2;
+    if (rustPatterns.macro.test(trimmed)) rustScore += 2;
+    if (rustPatterns.ownership.test(trimmed)) rustScore += 2;
+
+    if (rustScore >= 5) {
+      return 'rust';
+    }
+
+    // Ruby - def/end, specific syntax
+    const rubyPatterns = {
+      defEnd: /\bdef\s+\w+[\s\S]*?\bend\b/,
+      symbols: /:\w+/,
+      puts: /\bputs\s+/,
+      instanceVar: /@\w+/,
+      blocks: /\bdo\s+\|[\w,\s]+\||\{[\s\S]*?\|[\w,\s]+\|/,
+      require: /^require\s+['"][\w\/]+['"]/m
+    };
+
+    let rubyScore = 0;
+    if (rubyPatterns.defEnd.test(trimmed)) rubyScore += 3;
+    if (rubyPatterns.symbols.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.puts.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.instanceVar.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.blocks.test(trimmed)) rubyScore += 2;
+    if (rubyPatterns.require.test(trimmed)) rubyScore += 1;
+
+    if (rubyScore >= 5) {
+      return 'ruby';
+    }
+
+    // Swift - func, var, let with Swift-specific patterns
+    const swiftPatterns = {
+      funcKeyword: /\bfunc\s+\w+/,
+      varLet: /\b(var|let)\s+\w+/,
+      importFoundation: /^import\s+(Foundation|UIKit|SwiftUI)/m,
+      optionals: /\w+\?|\w+!/,
+      guardLet: /\bguard\s+let\s+/,
+      swiftPrint: /\bprint\(/
+    };
+
+    let swiftScore = 0;
+    if (swiftPatterns.funcKeyword.test(trimmed)) swiftScore += 2;
+    if (swiftPatterns.varLet.test(trimmed)) swiftScore += 1;
+    if (swiftPatterns.importFoundation.test(trimmed)) swiftScore += 3;
+    if (swiftPatterns.optionals.test(trimmed)) swiftScore += 2;
+    if (swiftPatterns.guardLet.test(trimmed)) swiftScore += 3;
+    if (swiftPatterns.swiftPrint.test(trimmed)) swiftScore += 1;
+
+    if (swiftScore >= 5) {
+      return 'swift';
+    }
+
+    // Kotlin - fun, val, var
+    const kotlinPatterns = {
+      funKeyword: /\bfun\s+\w+/,
+      valVar: /\b(val|var)\s+\w+/,
+      nullable: /\w+\?/,
+      dataClass: /\bdata\s+class\s+\w+/,
+      companionObject: /\bcompanion\s+object/,
+      kotlinPrint: /\bprintln\(/
+    };
+
+    let kotlinScore = 0;
+    if (kotlinPatterns.funKeyword.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.valVar.test(trimmed)) kotlinScore += 2;
+    if (kotlinPatterns.nullable.test(trimmed)) kotlinScore += 1;
+    if (kotlinPatterns.dataClass.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.companionObject.test(trimmed)) kotlinScore += 3;
+    if (kotlinPatterns.kotlinPrint.test(trimmed)) kotlinScore += 1;
+
+    if (kotlinScore >= 5) {
+      return 'kotlin';
+    }
+
+    // Markdown - Headers, lists, links
+    if (/^#{1,6}\s+\w+/m.test(trimmed) ||
+        /^\*\s+\w+/m.test(trimmed) ||
+        /\[.+\]\(.+\)/.test(trimmed)) {
+      return 'markdown';
+    }
+
+    // YAML - Key-value with colons, indentation-based
+    if (/^\w+:\s*$/m.test(trimmed) && /^\s+\w+:/m.test(trimmed)) {
+      return 'yaml';
+    }
+
+    // If we got here and it has semicolons, curly braces, and parentheses but didn't match specific languages
+    // it might be C/C++ or generic code
+    if (/[{};()]/.test(trimmed) && /\w+\s*\(/.test(trimmed)) {
+      // Check for C/C++ specific patterns
+      if (/#include\s+[<"]|int\s+main\s*\(|void\s+\w+\(|printf\(|std::/.test(trimmed)) {
+        return /std::|\bcout\b|iostream/.test(trimmed) ? 'cpp' : 'c';
+      }
+    }
+
+    // Unable to detect with confidence - return empty string
+    // Better to show no language than misclassify
+    return '';
+  },
+
   extractBlocks(root, depth = 0) {
     const blocks = [];
 
@@ -4362,12 +4689,18 @@ const Harvester = {
       if (!node || node.nodeType !== 1) return;
 
       const tag = node.tagName.toLowerCase();
-      
+
       // Code blocks
       if (tag === 'pre') {
         const code = node.querySelector('code') || node;
-        const language = (code.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
+        let language = (code.className || '').match(/language-([a-z0-9+.-]+)/i)?.[1] || '';
         const text = code.textContent || '';
+
+        // If no language from className, try smart detection
+        if (!language && text.trim()) {
+          language = this.detectCodeLanguage(text);
+        }
+
         if (text.trim()) {
           blocks.push({ kind: 'code', language, text });
           return true;
