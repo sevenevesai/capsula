@@ -3650,67 +3650,91 @@ const Harvester = {
   },
 
   detectThinkingStates(container) {
-    const timeLabels = [];
-    const stateLabels = [];
+    const labels = [];
     const expanderSelectors = [];
     const seenTexts = new Set();
 
-    // Search for thinking patterns in descendants
-    const searchNodes = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = (node.textContent || '').trim();
-        if (!text) return;
+    // CRITICAL FIX: Only look in STRUCTURAL thinking div locations
+    // ChatGPT places thinking indicators in specific divs with these classes
+    // Located ABOVE the message content, not within it
+    // This prevents false positives from user messages containing "Thought for" text
 
-        // Check time patterns (these are the most important - "Thought for X seconds")
+    // Primary selector: the specific thinking indicator divs
+    const thinkingDivs = container.querySelectorAll('.relative.my-1.min-h-6');
+
+    // Fallback: also check for other common thinking indicator patterns
+    // (in case ChatGPT updates their class structure)
+    const fallbackThinkingDivs = container.querySelectorAll('[class*="thinking"], [data-thinking]');
+
+    // Combine both sets, avoiding duplicates
+    const allThinkingDivs = new Set([...thinkingDivs, ...fallbackThinkingDivs]);
+
+    allThinkingDivs.forEach((thinkingDiv, index) => {
+      // Look for the thinking text span within this specific div
+      // Common patterns: spans with text-token-text-secondary class or similar
+      const thinkingSpans = thinkingDiv.querySelectorAll(
+        'span.text-token-text-secondary, span[class*="text-token-text"], span[class*="text-"]'
+      );
+
+      thinkingSpans.forEach(thinkingSpan => {
+        const text = (thinkingSpan.textContent || '').trim();
+        if (!text || seenTexts.has(text)) return;
+
+        // Check if this matches thinking patterns
+        let matchedType = null;
+
+        // Check time patterns first (most reliable)
         for (const pattern of CFG.thinkingPatterns.timePatterns) {
-          const match = text.match(pattern);
-          if (match && !seenTexts.has(match[0])) {
-            timeLabels.push({ text: match[0] });
-            seenTexts.add(match[0]);
+          if (pattern.test(text)) {
+            matchedType = 'time';
+            break;
           }
         }
 
-        // Check state patterns only if we haven't found time patterns yet
-        // (these are fallback indicators like "Analyzing", "Processing", etc.)
-        if (timeLabels.length === 0) {
+        // If no time pattern, check state patterns
+        if (!matchedType) {
           for (const pattern of CFG.thinkingPatterns.statePatterns) {
-            const match = text.match(pattern);
-            if (match && !seenTexts.has(match[0])) {
-              stateLabels.push({ text: match[0] });
-              seenTexts.add(match[0]);
-            }
-          }
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        // Check for expander buttons
-        if (node.tagName === 'BUTTON' || node.getAttribute('role') === 'button') {
-          const ariaExpanded = node.getAttribute('aria-expanded');
-          const hasRadixId = node.id && node.id.startsWith('radix-');
-          const buttonText = (node.textContent || '').toLowerCase();
-
-          if (ariaExpanded === 'false' || hasRadixId ||
-              /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
-            const selector = this.getElementSelector(node);
-            if (selector && expanderSelectors.length < 3) {
-              expanderSelectors.push(selector);
+            if (pattern.test(text)) {
+              matchedType = 'state';
+              break;
             }
           }
         }
 
-        // Recurse into children
-        for (const child of node.childNodes) {
-          searchNodes(child);
+        if (matchedType) {
+          labels.push({
+            text: text,
+            order: labels.length,  // Preserve sequence for multi-stage thinking
+            type: matchedType
+          });
+          seenTexts.add(text);
+        }
+      });
+
+      // Check for expander button in this thinking div
+      // Scope the search to this specific div to avoid false positives
+      const button = thinkingDiv.querySelector(
+        'button[aria-expanded], button[role="button"]'
+      );
+
+      if (button) {
+        const ariaExpanded = button.getAttribute('aria-expanded');
+        const hasRadixId = button.id && button.id.startsWith('radix-');
+        const buttonText = (button.textContent || '').toLowerCase();
+
+        // Only include if it's actually an expander (collapsed state)
+        if (ariaExpanded === 'false' || hasRadixId ||
+            /show|expand|details|view|steps|more|analysis|reasoning|tools?/.test(buttonText)) {
+          const selector = this.getElementSelector(button);
+          if (selector && !expanderSelectors.includes(selector)) {
+            expanderSelectors.push(selector);
+          }
         }
       }
-    };
-
-    searchNodes(container);
-
-    // Prefer time labels, fall back to state labels only if no time info found
-    const labels = timeLabels.length > 0 ? timeLabels : stateLabels.slice(0, 1);
+    });
 
     return {
-      labels: labels,
+      labels: labels,  // Array preserving all thinking stages in order
       expandable: expanderSelectors.length > 0,
       expanderSelectors: expanderSelectors.length > 0 ? expanderSelectors : undefined
     };
@@ -3825,9 +3849,14 @@ const Harvester = {
       '[data-testid="copy-turn-action-button"]',
       '[data-testid="copy-button"]',
       '.invisible',
-      '.sr-only'
+      '.sr-only',
+      // CRITICAL FIX: Remove thinking indicator divs from content
+      // These should not be included in the exported content
+      '.relative.my-1.min-h-6',  // Primary thinking indicator structure
+      '[class*="thinking"]',      // Fallback for thinking indicators
+      '[data-thinking]'           // Data attribute based thinking indicators
     ];
-    
+
     root.querySelectorAll?.(DROP.join(',')).forEach(n => n.remove());
     root.querySelectorAll?.('[class]').forEach(n => n.removeAttribute('class'));
     root.querySelectorAll?.('[style]').forEach(n => n.removeAttribute('style'));
