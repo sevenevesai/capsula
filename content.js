@@ -1547,7 +1547,7 @@ const IntegrationExportModal = {
   },
 
   /**
-   * Request optional host permissions
+   * Request optional host permissions via background broker
    * @private
    */
   async requestPermissions(service) {
@@ -1557,18 +1557,22 @@ const IntegrationExportModal = {
 
     try {
       // Check if permission already granted
-      const hasPermission = await browser.permissions.contains({
+      const checkResponse = await browser.runtime.sendMessage({
+        type: 'PERMISSIONS_CHECK',
         origins: [url]
       });
 
-      if (hasPermission) return true;
+      if (checkResponse.ok && checkResponse.data) {
+        return true; // Already granted
+      }
 
       // Request permission
-      const granted = await browser.permissions.request({
+      const requestResponse = await browser.runtime.sendMessage({
+        type: 'PERMISSIONS_REQUEST',
         origins: [url]
       });
 
-      return granted;
+      return requestResponse.ok;
     } catch (err) {
       console.error('[Capsula] Permission request failed:', err);
       return false;
@@ -3401,18 +3405,10 @@ const MessageFormatter = {
    Integration Storage Module
    =========================== */
 /**
- * Secure token storage using browser.storage.local with optional encryption.
- * Privacy-first: tokens never leave the extension, no remote servers.
+ * Secure token storage via background broker.
+ * Privacy-first: tokens handled by background script, never in page context.
  */
 const IntegrationStorage = {
-  KEYS: {
-    GITHUB_TOKEN: 'capsula_github_token',
-    NOTION_TOKEN: 'capsula_notion_token',
-    GITHUB_CONFIG: 'capsula_github_config',
-    NOTION_CONFIG: 'capsula_notion_config',
-    ENCRYPTION_ENABLED: 'capsula_encryption_enabled'
-  },
-
   /**
    * Get token for a service
    * @param {'github'|'notion'} service
@@ -3420,17 +3416,17 @@ const IntegrationStorage = {
    */
   async getToken(service) {
     try {
-      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
-      const result = await browser.storage.local.get([key, this.KEYS.ENCRYPTION_ENABLED]);
+      const response = await browser.runtime.sendMessage({
+        type: 'TOKEN_GET',
+        service
+      });
 
-      if (!result[key]) return null;
-
-      // If encryption is enabled, decrypt the token
-      if (result[this.KEYS.ENCRYPTION_ENABLED]) {
-        return await this._decrypt(result[key]);
+      if (!response.ok) {
+        console.error('[Capsula] Failed to get token:', response.error);
+        return null;
       }
 
-      return result[key];
+      return response.data || null;
     } catch (e) {
       console.error('[Capsula] Failed to get token:', e);
       return null;
@@ -3441,21 +3437,23 @@ const IntegrationStorage = {
    * Set token for a service
    * @param {'github'|'notion'} service
    * @param {string} token
-   * @param {string} [passphrase] - Optional passphrase for encryption
+   * @param {string} [passphrase] - Optional passphrase for encryption (reserved for future use)
    * @returns {Promise<boolean>}
    */
   async setToken(service, token, passphrase = null) {
     try {
-      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
-      let valueToStore = token;
+      const response = await browser.runtime.sendMessage({
+        type: 'TOKEN_SET',
+        service,
+        tokenPlain: token,
+        tokenCiphertext: passphrase ? null : undefined // Reserved for encryption
+      });
 
-      // If passphrase provided, enable encryption and encrypt token
-      if (passphrase) {
-        valueToStore = await this._encrypt(token, passphrase);
-        await browser.storage.local.set({ [this.KEYS.ENCRYPTION_ENABLED]: true });
+      if (!response.ok) {
+        console.error('[Capsula] Failed to set token:', response.error);
+        return false;
       }
 
-      await browser.storage.local.set({ [key]: valueToStore });
       return true;
     } catch (e) {
       console.error('[Capsula] Failed to set token:', e);
@@ -3470,8 +3468,16 @@ const IntegrationStorage = {
    */
   async clearToken(service) {
     try {
-      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
-      await browser.storage.local.remove(key);
+      const response = await browser.runtime.sendMessage({
+        type: 'TOKEN_CLEAR',
+        service
+      });
+
+      if (!response.ok) {
+        console.error('[Capsula] Failed to clear token:', response.error);
+        return false;
+      }
+
       return true;
     } catch (e) {
       console.error('[Capsula] Failed to clear token:', e);
@@ -3480,13 +3486,13 @@ const IntegrationStorage = {
   },
 
   /**
-   * Get configuration for a service
+   * Get configuration for a service (stored locally for non-sensitive data)
    * @param {'github'|'notion'} service
    * @returns {Promise<Object>}
    */
   async getConfig(service) {
     try {
-      const key = service === 'github' ? this.KEYS.GITHUB_CONFIG : this.KEYS.NOTION_CONFIG;
+      const key = `capsula_config_${service}`;
       const result = await browser.storage.local.get(key);
       return result[key] || {};
     } catch (e) {
@@ -3496,80 +3502,20 @@ const IntegrationStorage = {
   },
 
   /**
-   * Set configuration for a service
+   * Set configuration for a service (stored locally for non-sensitive data)
    * @param {'github'|'notion'} service
    * @param {Object} config
    * @returns {Promise<boolean>}
    */
   async setConfig(service, config) {
     try {
-      const key = service === 'github' ? this.KEYS.GITHUB_CONFIG : this.KEYS.NOTION_CONFIG;
+      const key = `capsula_config_${service}`;
       await browser.storage.local.set({ [key]: config });
       return true;
     } catch (e) {
       console.error('[Capsula] Failed to set config:', e);
       return false;
     }
-  },
-
-  /**
-   * Encrypt token using Web Crypto API (PBKDF2 + AES-GCM)
-   * @private
-   */
-  async _encrypt(token, passphrase) {
-    const enc = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-
-    // Derive key from passphrase
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(passphrase),
-      'PBKDF2',
-      false,
-      ['deriveBits', 'deriveKey']
-    );
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-
-    // Encrypt token
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: iv },
-      key,
-      enc.encode(token)
-    );
-
-    // Return base64-encoded encrypted data with salt and iv
-    return JSON.stringify({
-      encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-      salt: Array.from(salt),
-      iv: Array.from(iv)
-    });
-  },
-
-  /**
-   * Decrypt token using Web Crypto API
-   * @private
-   */
-  async _decrypt(encryptedData) {
-    const enc = new TextEncoder();
-    const dec = new TextDecoder();
-    const data = JSON.parse(encryptedData);
-
-    // This is a simplified version - in production, would need to store/retrieve passphrase
-    // For MVP, we'll skip encryption and just use plain storage
-    throw new Error('Decryption requires passphrase - not implemented in MVP');
   }
 };
 
@@ -3586,19 +3532,27 @@ const IntegrationStorage = {
  * @property {string} [hint]
  * @property {*} [raw]
  */
+/**
+ * HttpClient - Proxy for all network requests via background broker
+ *
+ * All HTTP requests are routed through the background script to avoid CSP violations.
+ * The background script handles retry logic, rate limiting, timeouts, and error normalization.
+ */
 const HttpClient = {
-  MAX_RETRIES: 3,
   TIMEOUT_MS: 30000,
 
   /**
-   * Make HTTP request with retry and rate limit handling
-   * @param {string} url
-   * @param {RequestInit} options
-   * @param {number} [attempt=0]
-   * @returns {Promise<{ok: boolean, data?: any, error?: NormalizedError}>}
+   * Make HTTP request via background broker
+   * @param {string} url - The URL to request
+   * @param {Object} options - Request options
+   * @param {string} [options.method='GET'] - HTTP method
+   * @param {Object} [options.headers={}] - Request headers
+   * @param {Object} [options.body] - Request body (for POST/PATCH/PUT)
+   * @param {number} [options.timeoutMs] - Custom timeout in ms
+   * @returns {Promise<{ok: boolean, data?: any, headers?: Object, error?: NormalizedError}>}
    */
-  async request(url, options = {}, attempt = 0) {
-    // Check if online
+  async request(url, options = {}) {
+    // Check if online (quick check before sending message)
     if (!navigator.onLine) {
       return {
         ok: false,
@@ -3611,178 +3565,32 @@ const HttpClient = {
     }
 
     try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal
+      // Send request to background broker
+      // Background handles: retries, rate limiting, timeouts, error normalization
+      const response = await browser.runtime.sendMessage({
+        type: 'HTTP_JSON',
+        url,
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: options.body,
+        timeoutMs: options.timeoutMs || this.TIMEOUT_MS
       });
 
-      clearTimeout(timeoutId);
-
-      // Handle rate limiting
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After');
-        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : this._calculateBackoff(attempt);
-
-        if (attempt < this.MAX_RETRIES) {
-          await this._sleep(waitMs);
-          return this.request(url, options, attempt + 1);
-        }
-
-        return {
-          ok: false,
-          error: {
-            code: 'RATE_LIMIT',
-            message: 'Rate limit exceeded',
-            hint: `Please wait ${Math.ceil(waitMs / 1000)} seconds and try again.`,
-            raw: { retryAfter }
-          }
-        };
-      }
-
-      // Handle server errors with retry
-      if (response.status >= 500 && attempt < this.MAX_RETRIES) {
-        const waitMs = this._calculateBackoff(attempt);
-        await this._sleep(waitMs);
-        return this.request(url, options, attempt + 1);
-      }
-
-      // Parse response
-      const data = await response.json().catch(() => ({}));
-
-      // Handle successful response
-      if (response.ok) {
-        return { ok: true, data };
-      }
-
-      // Handle error responses
-      return {
-        ok: false,
-        error: this._normalizeError(response.status, data, url)
-      };
+      return response;
 
     } catch (err) {
-      // Handle network errors
-      if (err.name === 'AbortError') {
-        return {
-          ok: false,
-          error: {
-            code: 'NETWORK',
-            message: 'Request timed out',
-            hint: 'The request took too long. Please try again.'
-          }
-        };
-      }
-
-      // Retry on network error
-      if (attempt < this.MAX_RETRIES) {
-        const waitMs = this._calculateBackoff(attempt);
-        await this._sleep(waitMs);
-        return this.request(url, options, attempt + 1);
-      }
-
+      // Handle message passing errors (e.g., background script not responding)
+      console.error('[Capsula] Failed to send request to background broker:', err);
       return {
         ok: false,
         error: {
           code: 'NETWORK',
-          message: err.message || 'Network error',
-          hint: 'Check your internet connection and try again.',
+          message: 'Failed to communicate with background script',
+          hint: 'Please reload the extension and try again.',
           raw: err
         }
       };
     }
-  },
-
-  /**
-   * Normalize API errors to standard format
-   * @private
-   */
-  _normalizeError(status, data, url) {
-    const isGitHub = url.includes('api.github.com');
-    const isNotion = url.includes('api.notion.com');
-
-    switch (status) {
-      case 401:
-        return {
-          code: 'AUTH',
-          message: 'Invalid or expired token',
-          hint: 'Please check your token and try again.'
-        };
-
-      case 403:
-        if (isGitHub && data.message?.includes('scope')) {
-          return {
-            code: 'SCOPE',
-            message: 'Insufficient token permissions',
-            hint: 'Your token needs additional scopes. For Gists, use "gist" scope. For Issues, add "repo" or "public_repo" scope.'
-          };
-        }
-        return {
-          code: 'AUTH',
-          message: 'Access forbidden',
-          hint: 'Your token may not have the required permissions.'
-        };
-
-      case 404:
-        return {
-          code: 'VALIDATION',
-          message: 'Resource not found',
-          hint: isGitHub ? 'Check that the repository exists and you have access.' : 'Check that the parent page exists and is shared with your integration.'
-        };
-
-      case 400:
-      case 422:
-        if (isNotion && data.message?.includes('parent')) {
-          return {
-            code: 'VALIDATION',
-            message: 'Invalid parent page or database',
-            hint: 'Make sure the parent page/database is shared with your Notion integration.'
-          };
-        }
-        if (isGitHub && (data.message?.includes('too large') || data.message?.includes('size'))) {
-          return {
-            code: 'PAYLOAD_TOO_LARGE',
-            message: 'Content is too large',
-            hint: 'The conversation will be split into multiple files automatically.'
-          };
-        }
-        return {
-          code: 'VALIDATION',
-          message: data.message || 'Invalid request',
-          hint: 'Please check your input and try again.',
-          raw: data
-        };
-
-      default:
-        return {
-          code: 'UNKNOWN',
-          message: data.message || `Request failed with status ${status}`,
-          hint: 'An unexpected error occurred. Please try again.',
-          raw: data
-        };
-    }
-  },
-
-  /**
-   * Calculate exponential backoff with jitter
-   * @private
-   */
-  _calculateBackoff(attempt) {
-    const baseMs = 2000;
-    const exponential = baseMs * Math.pow(2, attempt);
-    const jitter = Math.random() * 1000;
-    return Math.min(exponential + jitter, 16000);
-  },
-
-  /**
-   * Sleep for specified milliseconds
-   * @private
-   */
-  _sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 };
 
