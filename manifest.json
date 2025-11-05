@@ -37,6 +37,12 @@
   ],
 
   "permissions": [
-    "clipboardWrite"
+    "clipboardWrite",
+    "storage"
+  ],
+
+  "optional_host_permissions": [
+    "https://api.github.com/*",
+    "https://api.notion.com/*"
   ]
 }

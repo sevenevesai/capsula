@@ -862,19 +862,78 @@ const SettingsPanel = {
           
           <div class="setting-group">
             <h3>Export Options</h3>
-            
+
             <div class="setting-item">
               <label>Markdown Prefix (optional):</label>
               <textarea data-setting="mdPrefix" placeholder="Text to add at the beginning of markdown exports">${settings.mdPrefix || ''}</textarea>
             </div>
-            
+
             <div class="setting-item">
               <label>Markdown Suffix (optional):</label>
               <textarea data-setting="mdSuffix" placeholder="Text to add at the end of markdown exports">${settings.mdSuffix || ''}</textarea>
             </div>
           </div>
+
+          <div class="setting-group">
+            <h3>Integrations</h3>
+            <p class="setting-description">Connect GitHub and Notion to export conversations directly to these platforms.</p>
+
+            <!-- GitHub Integration -->
+            <div class="integration-section">
+              <div class="integration-header">
+                <h4>GitHub</h4>
+                <span class="integration-status" data-status="github">Not connected</span>
+              </div>
+
+              <div class="setting-item">
+                <label>Personal Access Token:</label>
+                <div class="token-input-group">
+                  <input type="password" data-integration="github-token" placeholder="ghp_..." class="integration-token-input">
+                  <button class="secondary-btn" data-action="toggle-token" data-target="github-token">Show</button>
+                </div>
+                <small class="setting-hint">
+                  <a href="https://github.com/settings/tokens/new?scopes=gist&description=Capsula" target="_blank" rel="noopener">Create token</a>
+                  with "gist" scope. For Issues, add "repo" or "public_repo" scope.
+                </small>
+              </div>
+
+              <div class="integration-actions">
+                <button class="secondary-btn" data-action="test-connection" data-service="github">Test Connection</button>
+                <button class="secondary-btn" data-action="clear-token" data-service="github">Clear Token</button>
+              </div>
+
+              <div class="integration-result" data-result="github" style="display: none;"></div>
+            </div>
+
+            <!-- Notion Integration -->
+            <div class="integration-section">
+              <div class="integration-header">
+                <h4>Notion</h4>
+                <span class="integration-status" data-status="notion">Not connected</span>
+              </div>
+
+              <div class="setting-item">
+                <label>Integration Token:</label>
+                <div class="token-input-group">
+                  <input type="password" data-integration="notion-token" placeholder="secret_..." class="integration-token-input">
+                  <button class="secondary-btn" data-action="toggle-token" data-target="notion-token">Show</button>
+                </div>
+                <small class="setting-hint">
+                  <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">Create integration</a>
+                  and share a parent page with it. Then paste the "Internal Integration Token" here.
+                </small>
+              </div>
+
+              <div class="integration-actions">
+                <button class="secondary-btn" data-action="test-connection" data-service="notion">Test Connection</button>
+                <button class="secondary-btn" data-action="clear-token" data-service="notion">Clear Token</button>
+              </div>
+
+              <div class="integration-result" data-result="notion" style="display: none;"></div>
+            </div>
+          </div>
         </div>
-        
+
         <div class="settings-footer">
           <button class="secondary-btn" data-action="reset">Reset to Defaults</button>
           <div style="flex: 1"></div>
@@ -925,6 +984,128 @@ const SettingsPanel = {
         input.dataset.changed = 'true';
       });
     });
+
+    // Integration handlers
+    this.attachIntegrationHandlers(container);
+  },
+
+  async attachIntegrationHandlers(container) {
+    // Toggle token visibility
+    container.querySelectorAll('[data-action="toggle-token"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        const input = container.querySelector(`[data-integration="${target}"]`);
+        if (input) {
+          if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = 'Hide';
+          } else {
+            input.type = 'password';
+            btn.textContent = 'Show';
+          }
+        }
+      });
+    });
+
+    // Test connection
+    container.querySelectorAll('[data-action="test-connection"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const service = btn.dataset.service;
+        await this.testIntegrationConnection(service, container);
+      });
+    });
+
+    // Clear token
+    container.querySelectorAll('[data-action="clear-token"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const service = btn.dataset.service;
+        if (confirm(`Clear ${service} token?`)) {
+          await IntegrationStorage.clearToken(service);
+          const input = container.querySelector(`[data-integration="${service}-token"]`);
+          if (input) input.value = '';
+          this.updateIntegrationStatus(service, container, 'Not connected', false);
+          NotificationManager.showToast(`${service} token cleared`);
+        }
+      });
+    });
+
+    // Load existing tokens and test connections
+    await this.loadIntegrationStates(container);
+  },
+
+  async loadIntegrationStates(container) {
+    // Check GitHub
+    const githubToken = await IntegrationStorage.getToken('github');
+    if (githubToken) {
+      const input = container.querySelector('[data-integration="github-token"]');
+      if (input) input.value = githubToken;
+      await this.testIntegrationConnection('github', container, true);
+    }
+
+    // Check Notion
+    const notionToken = await IntegrationStorage.getToken('notion');
+    if (notionToken) {
+      const input = container.querySelector('[data-integration="notion-token"]');
+      if (input) input.value = notionToken;
+      await this.testIntegrationConnection('notion', container, true);
+    }
+  },
+
+  async testIntegrationConnection(service, container, silent = false) {
+    const input = container.querySelector(`[data-integration="${service}-token"]`);
+    const token = input?.value?.trim();
+
+    if (!token) {
+      this.updateIntegrationStatus(service, container, 'No token provided', false);
+      return;
+    }
+
+    // Save token first
+    await IntegrationStorage.setToken(service, token);
+
+    // Test connection
+    this.updateIntegrationStatus(service, container, 'Testing...', null);
+
+    const exporter = service === 'github' ? GitHubExporter : NotionExporter;
+    const result = await exporter.testConnection();
+
+    if (result.ok) {
+      this.updateIntegrationStatus(
+        service,
+        container,
+        `Connected as ${result.identity}`,
+        true
+      );
+      if (!silent) {
+        NotificationManager.showToast(`${service} connected successfully`);
+      }
+    } else {
+      this.updateIntegrationStatus(
+        service,
+        container,
+        `Error: ${result.error}`,
+        false
+      );
+      if (!silent) {
+        NotificationManager.showToast(`${service} connection failed`, 'error');
+      }
+    }
+  },
+
+  updateIntegrationStatus(service, container, message, success) {
+    const statusEl = container.querySelector(`[data-status="${service}"]`);
+    const resultEl = container.querySelector(`[data-result="${service}"]`);
+
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.color = success === true ? '#10b981' : success === false ? '#ef4444' : '#6b7280';
+    }
+
+    if (resultEl && message) {
+      resultEl.textContent = message;
+      resultEl.style.display = 'block';
+      resultEl.style.color = success === true ? '#10b981' : success === false ? '#ef4444' : '#6b7280';
+    }
   },
 
   saveSettings(container) {
@@ -1333,6 +1514,615 @@ const DashboardView = {
 };
 
 /* ===========================
+   Integration Export Modal
+   =========================== */
+/**
+ * Modal for exporting to GitHub/Notion with progress tracking
+ */
+const IntegrationExportModal = {
+  /**
+   * Show export modal for a service
+   * @param {'github'|'notion'} service
+   * @param {Object} harvest
+   * @param {ShadowRoot} parentShadow
+   */
+  async show(service, harvest, parentShadow) {
+    // Check if token exists
+    const token = await IntegrationStorage.getToken(service);
+    if (!token) {
+      alert(`Please configure your ${service} token in Settings first.`);
+      return;
+    }
+
+    // Request host permissions if needed
+    const hasPermission = await this.requestPermissions(service);
+    if (!hasPermission) {
+      alert(`${service} integration requires permission to access ${service === 'github' ? 'api.github.com' : 'api.notion.com'}. Please grant permission when prompted.`);
+      return;
+    }
+
+    // Create and show modal
+    const modal = this.createModal(service, harvest);
+    parentShadow.appendChild(modal);
+  },
+
+  /**
+   * Request optional host permissions
+   * @private
+   */
+  async requestPermissions(service) {
+    const url = service === 'github'
+      ? 'https://api.github.com/*'
+      : 'https://api.notion.com/*';
+
+    try {
+      // Check if permission already granted
+      const hasPermission = await browser.permissions.contains({
+        origins: [url]
+      });
+
+      if (hasPermission) return true;
+
+      // Request permission
+      const granted = await browser.permissions.request({
+        origins: [url]
+      });
+
+      return granted;
+    } catch (err) {
+      console.error('[Capsula] Permission request failed:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Create modal element
+   * @private
+   */
+  createModal(service, harvest) {
+    const host = document.createElement('div');
+    host.id = 'capsula-integration-modal';
+    host.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483647; display: flex; align-items: center; justify-content: center;';
+
+    const shadow = host.attachShadow({ mode: 'open' });
+    const colors = ThemeUtils.getColors();
+
+    shadow.innerHTML = `
+      <style>
+        ${this.getStyles(colors)}
+      </style>
+      <div class="modal-backdrop"></div>
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>Export to ${service === 'github' ? 'GitHub' : 'Notion'}</h3>
+          <button class="modal-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          ${service === 'github' ? this.getGitHubForm(harvest) : this.getNotionForm(harvest)}
+        </div>
+        <div class="modal-footer">
+          <div class="progress-container" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-fill"></div>
+            </div>
+            <div class="progress-text"></div>
+          </div>
+          <div class="action-buttons">
+            <button class="secondary-btn modal-cancel">Cancel</button>
+            <button class="export-btn modal-submit">Create ${service === 'github' ? 'Gist' : 'Page'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.attachModalHandlers(shadow, host, service, harvest);
+    return host;
+  },
+
+  /**
+   * Get GitHub form HTML
+   * @private
+   */
+  getGitHubForm(harvest) {
+    const defaultTitle = (harvest.meta?.title || 'conversation').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    const date = new Date().toISOString().split('T')[0];
+
+    return `
+      <div class="form-group">
+        <label>Gist Filename:</label>
+        <input type="text" class="form-input" data-field="filename" value="${defaultTitle}-${date}.md" placeholder="conversation.md">
+      </div>
+
+      <div class="form-group">
+        <label>Description (optional):</label>
+        <input type="text" class="form-input" data-field="description" value="Capsula export: ${harvest.meta?.title || 'Conversation'}" placeholder="Brief description...">
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="radio" name="visibility" value="private" checked>
+          Private (only you can see it)
+        </label>
+        <label>
+          <input type="radio" name="visibility" value="public">
+          Public (anyone with the link can see it)
+        </label>
+      </div>
+
+      <div class="form-group">
+        <details class="advanced-options">
+          <summary>Advanced Options</summary>
+          <label>
+            <input type="checkbox" data-field="create-issue">
+            Create as GitHub Issue instead (requires repository)
+          </label>
+          <div class="issue-options" style="display: none; margin-top: 10px;">
+            <input type="text" class="form-input" data-field="repo" placeholder="owner/repository">
+            <small>Repository in format: owner/repo</small>
+          </div>
+        </details>
+      </div>
+    `;
+  },
+
+  /**
+   * Get Notion form HTML
+   * @private
+   */
+  getNotionForm(harvest) {
+    return `
+      <div class="form-group">
+        <label>Page Title:</label>
+        <input type="text" class="form-input" data-field="title" value="${harvest.meta?.title || 'ChatGPT Conversation'}" placeholder="Page title...">
+      </div>
+
+      <div class="form-group">
+        <label>Parent Page:</label>
+        <button class="secondary-btn" data-action="select-parent">Select Parent Page...</button>
+        <div class="selected-parent" style="display: none; margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+          <strong>Selected:</strong> <span class="parent-name"></span>
+        </div>
+        <input type="hidden" data-field="parent-id">
+        <input type="hidden" data-field="parent-type">
+      </div>
+
+      <div class="page-list" style="display: none; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; padding: 8px; margin-top: 8px;">
+        <!-- Pages will be loaded here -->
+      </div>
+    `;
+  },
+
+  /**
+   * Attach modal event handlers
+   * @private
+   */
+  attachModalHandlers(shadow, host, service, harvest) {
+    const closeBtn = shadow.querySelector('.modal-close');
+    const cancelBtn = shadow.querySelector('.modal-cancel');
+    const submitBtn = shadow.querySelector('.modal-submit');
+    const backdrop = shadow.querySelector('.modal-backdrop');
+
+    const close = () => host.remove();
+
+    closeBtn?.addEventListener('click', close);
+    cancelBtn?.addEventListener('click', close);
+    backdrop?.addEventListener('click', close);
+
+    // GitHub-specific handlers
+    if (service === 'github') {
+      const issueCheckbox = shadow.querySelector('[data-field="create-issue"]');
+      const issueOptions = shadow.querySelector('.issue-options');
+
+      issueCheckbox?.addEventListener('change', (e) => {
+        if (issueOptions) {
+          issueOptions.style.display = e.target.checked ? 'block' : 'none';
+        }
+      });
+    }
+
+    // Notion-specific handlers
+    if (service === 'notion') {
+      const selectParentBtn = shadow.querySelector('[data-action="select-parent"]');
+      const pageList = shadow.querySelector('.page-list');
+
+      selectParentBtn?.addEventListener('click', async () => {
+        pageList.style.display = 'block';
+        pageList.innerHTML = '<div style="text-align: center; padding: 20px;">Loading pages...</div>';
+
+        const result = await NotionExporter.searchPages('');
+
+        if (result.ok && result.pages) {
+          if (result.pages.length === 0) {
+            pageList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No pages found. Make sure you\'ve shared a page with your integration.</div>';
+          } else {
+            pageList.innerHTML = result.pages.map(page => {
+              const title = page.properties?.title?.title?.[0]?.plain_text ||
+                            page.properties?.Name?.title?.[0]?.plain_text ||
+                            'Untitled';
+              return `
+                <div class="page-item" data-page-id="${page.id}" data-page-type="${page.object === 'database' ? 'database' : 'page'}" style="padding: 8px; cursor: pointer; border-radius: 4px; margin-bottom: 4px;">
+                  ${page.object === 'database' ? '🗂️' : '📄'} ${title}
+                </div>
+              `;
+            }).join('');
+
+            // Add click handlers to page items
+            pageList.querySelectorAll('.page-item').forEach(item => {
+              item.addEventListener('click', () => {
+                const pageId = item.dataset.pageId;
+                const pageType = item.dataset.pageType;
+                const pageName = item.textContent.trim();
+
+                shadow.querySelector('[data-field="parent-id"]').value = pageId;
+                shadow.querySelector('[data-field="parent-type"]').value = pageType;
+                shadow.querySelector('.parent-name').textContent = pageName;
+                shadow.querySelector('.selected-parent').style.display = 'block';
+                pageList.style.display = 'none';
+              });
+            });
+          }
+        } else {
+          pageList.innerHTML = `<div style="text-align: center; padding: 20px; color: #ef4444;">Failed to load pages: ${result.error?.message || 'Unknown error'}</div>`;
+        }
+      });
+    }
+
+    // Submit handler
+    submitBtn?.addEventListener('click', async () => {
+      await this.handleSubmit(shadow, submitBtn, service, harvest, host);
+    });
+  },
+
+  /**
+   * Handle form submission
+   * @private
+   */
+  async handleSubmit(shadow, submitBtn, service, harvest, host) {
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Exporting...';
+
+    // Show progress
+    const progressContainer = shadow.querySelector('.progress-container');
+    const actionButtons = shadow.querySelector('.action-buttons');
+    progressContainer.style.display = 'block';
+    actionButtons.style.display = 'none';
+
+    try {
+      if (service === 'github') {
+        await this.handleGitHubExport(shadow, harvest, host);
+      } else {
+        await this.handleNotionExport(shadow, harvest, host);
+      }
+    } catch (err) {
+      console.error('[Capsula] Export failed:', err);
+      alert(`Export failed: ${err.message}`);
+      submitBtn.disabled = false;
+      submitBtn.textContent = `Create ${service === 'github' ? 'Gist' : 'Page'}`;
+      progressContainer.style.display = 'none';
+      actionButtons.style.display = 'flex';
+    }
+  },
+
+  /**
+   * Handle GitHub export
+   * @private
+   */
+  async handleGitHubExport(shadow, harvest, host) {
+    const visibility = shadow.querySelector('input[name="visibility"]:checked')?.value || 'private';
+    const description = shadow.querySelector('[data-field="description"]')?.value || '';
+    const createIssue = shadow.querySelector('[data-field="create-issue"]')?.checked || false;
+    const repo = shadow.querySelector('[data-field="repo"]')?.value || '';
+
+    const options = {
+      visibility,
+      description,
+      createIssue,
+      repo,
+      onProgress: (progress) => {
+        this.updateProgress(shadow, progress);
+      }
+    };
+
+    const exporter = ExporterRegistry.get('github-gist');
+    const result = await exporter.export(harvest, globalState.filters, options);
+
+    if (result.ok) {
+      this.showSuccess(shadow, result.url);
+      // Copy URL to clipboard
+      await navigator.clipboard.writeText(result.url);
+      NotificationManager.showToast('Gist created and URL copied to clipboard!');
+      setTimeout(() => host.remove(), 3000);
+    } else {
+      throw new Error(result.error.message);
+    }
+  },
+
+  /**
+   * Handle Notion export
+   * @private
+   */
+  async handleNotionExport(shadow, harvest, host) {
+    const title = shadow.querySelector('[data-field="title"]')?.value || harvest.meta?.title || 'Conversation';
+    const parentId = shadow.querySelector('[data-field="parent-id"]')?.value;
+    const parentType = shadow.querySelector('[data-field="parent-type"]')?.value;
+
+    if (!parentId) {
+      throw new Error('Please select a parent page');
+    }
+
+    const options = {
+      title,
+      parentId,
+      parentType,
+      onProgress: (progress) => {
+        this.updateProgress(shadow, progress);
+      }
+    };
+
+    const exporter = ExporterRegistry.get('notion');
+    const result = await exporter.export(harvest, globalState.filters, options);
+
+    if (result.ok) {
+      this.showSuccess(shadow, result.url);
+      // Copy URL to clipboard
+      await navigator.clipboard.writeText(result.url);
+      NotificationManager.showToast('Notion page created and URL copied to clipboard!');
+      setTimeout(() => host.remove(), 3000);
+    } else {
+      throw new Error(result.error.message);
+    }
+  },
+
+  /**
+   * Update progress bar
+   * @private
+   */
+  updateProgress(shadow, progress) {
+    const progressFill = shadow.querySelector('.progress-fill');
+    const progressText = shadow.querySelector('.progress-text');
+
+    if (progressText) {
+      progressText.textContent = progress.message || '';
+    }
+
+    // Calculate progress percentage
+    let percentage = 0;
+    if (progress.step === 'PREPARING') percentage = 10;
+    else if (progress.step === 'VALIDATING') percentage = 20;
+    else if (progress.step.startsWith('UPLOADING')) {
+      // Parse "UPLOADING_X_OF_Y"
+      const match = progress.step.match(/UPLOADING_(\d+)_OF_(\d+)/);
+      if (match) {
+        const current = parseInt(match[1]);
+        const total = parseInt(match[2]);
+        percentage = 20 + ((current / total) * 70);
+      } else {
+        percentage = 50;
+      }
+    }
+    else if (progress.step === 'FINALIZING') percentage = 95;
+    else if (progress.step === 'SUCCESS') percentage = 100;
+
+    if (progressFill) {
+      progressFill.style.width = `${percentage}%`;
+    }
+  },
+
+  /**
+   * Show success message
+   * @private
+   */
+  showSuccess(shadow, url) {
+    const progressText = shadow.querySelector('.progress-text');
+    if (progressText) {
+      progressText.innerHTML = `
+        <div style="color: #10b981; font-weight: bold; margin-bottom: 8px;">✓ Success!</div>
+        <a href="${url}" target="_blank" rel="noopener" style="color: #3b82f6; text-decoration: underline;">${url}</a>
+        <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">URL copied to clipboard</div>
+      `;
+    }
+  },
+
+  /**
+   * Get modal styles
+   * @private
+   */
+  getStyles(colors) {
+    return `
+      * { box-sizing: border-box; }
+
+      .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-container {
+        position: relative;
+        background: ${colors.bg};
+        color: ${colors.text};
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        animation: slideUp 0.3s ease;
+      }
+
+      @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px;
+        border-bottom: 1px solid ${colors.border};
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 28px;
+        color: ${colors.textSecondary};
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+      }
+
+      .modal-close:hover {
+        background: ${colors.hover};
+      }
+
+      .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid ${colors.border};
+        border-radius: 6px;
+        background: ${colors.bgSecondary};
+        color: ${colors.text};
+        font-size: 14px;
+        font-family: inherit;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: ${colors.accentPrimary};
+      }
+
+      .form-group label input[type="radio"] {
+        margin-right: 8px;
+      }
+
+      .advanced-options summary {
+        cursor: pointer;
+        font-weight: 500;
+        padding: 8px 0;
+      }
+
+      .page-item:hover {
+        background: ${colors.hover};
+      }
+
+      .modal-footer {
+        padding: 20px;
+        border-top: 1px solid ${colors.border};
+      }
+
+      .action-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+      }
+
+      .secondary-btn, .export-btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .secondary-btn {
+        background: transparent;
+        border: 1px solid ${colors.border};
+        color: ${colors.text};
+      }
+
+      .secondary-btn:hover {
+        background: ${colors.hover};
+      }
+
+      .export-btn {
+        background: ${colors.accentPrimary};
+        border: none;
+        color: white;
+      }
+
+      .export-btn:hover {
+        opacity: 0.9;
+      }
+
+      .export-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .progress-container {
+        margin-bottom: 16px;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: ${colors.hover};
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 8px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: ${colors.accentPrimary};
+        transition: width 0.3s ease;
+        width: 0%;
+      }
+
+      .progress-text {
+        font-size: 14px;
+        color: ${colors.textSecondary};
+        text-align: center;
+      }
+
+      small {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        color: ${colors.textSecondary};
+      }
+    `;
+  }
+};
+
+/* ===========================
    Export Panel Component (Enhanced)
    =========================== */
 const ExportPanel = {
@@ -1475,6 +2265,20 @@ const ExportPanel = {
         </button>
 
         <div style="flex: 1"></div>
+
+        <button class="integration-btn github-btn" data-action="export-github" title="Export to GitHub Gist">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub
+        </button>
+
+        <button class="integration-btn notion-btn" data-action="export-notion" title="Export to Notion">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2H3zm1.5 3h7a.5.5 0 010 1h-7a.5.5 0 010-1zm0 3h7a.5.5 0 010 1h-7a.5.5 0 010-1zm0 3h4a.5.5 0 010 1h-4a.5.5 0 010-1z"/>
+          </svg>
+          Notion
+        </button>
 
         <button class="export-btn" data-action="export">
           Export Conversation
@@ -1883,7 +2687,47 @@ const ExportPanel = {
       .secondary-btn:hover {
         background: ${colors.hover};
       }
-      
+
+      .integration-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: transparent;
+        color: ${colors.text};
+        border: 1px solid ${colors.border};
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: ${chatFont};
+      }
+
+      .integration-btn:hover {
+        background: ${colors.hover};
+        border-color: ${colors.accentPrimary};
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      .github-btn:hover {
+        background: #24292e;
+        color: white;
+        border-color: #24292e;
+      }
+
+      .notion-btn:hover {
+        background: #000000;
+        color: white;
+        border-color: #000000;
+      }
+
+      .integration-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
       .chat-preview::-webkit-scrollbar {
         width: 8px;
       }
@@ -1974,6 +2818,18 @@ const ExportPanel = {
 
     exportBtn?.addEventListener('click', () => ExportManager.export(harvest));
     copyBtn?.addEventListener('click', () => ExportManager.copy(harvest));
+
+    // Integration export buttons
+    const githubBtn = shadow.querySelector('[data-action="export-github"]');
+    const notionBtn = shadow.querySelector('[data-action="export-notion"]');
+
+    githubBtn?.addEventListener('click', async () => {
+      await IntegrationExportModal.show('github', harvest, shadow);
+    });
+
+    notionBtn?.addEventListener('click', async () => {
+      await IntegrationExportModal.show('notion', harvest, shadow);
+    });
   },
 
   attachDashboardHandlers(shadow, harvest) {
@@ -2163,6 +3019,91 @@ const SettingsStyles = {
         padding: 16px 20px;
         border-top: 1px solid ${colors.border};
         background: ${colors.bgSecondary};
+      }
+
+      /* Integration Settings Styles */
+      .setting-description {
+        color: ${colors.textSecondary};
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .integration-section {
+        margin-bottom: 24px;
+        padding: 16px;
+        border: 1px solid ${colors.border};
+        border-radius: 8px;
+        background: ${colors.bgSecondary};
+      }
+
+      .integration-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .integration-header h4 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: ${colors.text};
+      }
+
+      .integration-status {
+        font-size: 13px;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: ${colors.hover};
+      }
+
+      .token-input-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .integration-token-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid ${colors.border};
+        background: ${colors.bg};
+        color: ${colors.text};
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: monospace;
+      }
+
+      .setting-hint {
+        display: block;
+        margin-top: 6px;
+        font-size: 12px;
+        color: ${colors.textSecondary};
+        line-height: 1.4;
+      }
+
+      .setting-hint a {
+        color: ${colors.accentPrimary};
+        text-decoration: none;
+      }
+
+      .setting-hint a:hover {
+        text-decoration: underline;
+      }
+
+      .integration-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .integration-result {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: ${colors.hover};
+        font-size: 13px;
       }
     `;
   }
@@ -2455,6 +3396,1570 @@ const MessageFormatter = {
     return html;
   }
 };
+
+/* ===========================
+   Integration Storage Module
+   =========================== */
+/**
+ * Secure token storage using browser.storage.local with optional encryption.
+ * Privacy-first: tokens never leave the extension, no remote servers.
+ */
+const IntegrationStorage = {
+  KEYS: {
+    GITHUB_TOKEN: 'capsula_github_token',
+    NOTION_TOKEN: 'capsula_notion_token',
+    GITHUB_CONFIG: 'capsula_github_config',
+    NOTION_CONFIG: 'capsula_notion_config',
+    ENCRYPTION_ENABLED: 'capsula_encryption_enabled'
+  },
+
+  /**
+   * Get token for a service
+   * @param {'github'|'notion'} service
+   * @returns {Promise<string|null>}
+   */
+  async getToken(service) {
+    try {
+      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
+      const result = await browser.storage.local.get([key, this.KEYS.ENCRYPTION_ENABLED]);
+
+      if (!result[key]) return null;
+
+      // If encryption is enabled, decrypt the token
+      if (result[this.KEYS.ENCRYPTION_ENABLED]) {
+        return await this._decrypt(result[key]);
+      }
+
+      return result[key];
+    } catch (e) {
+      console.error('[Capsula] Failed to get token:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Set token for a service
+   * @param {'github'|'notion'} service
+   * @param {string} token
+   * @param {string} [passphrase] - Optional passphrase for encryption
+   * @returns {Promise<boolean>}
+   */
+  async setToken(service, token, passphrase = null) {
+    try {
+      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
+      let valueToStore = token;
+
+      // If passphrase provided, enable encryption and encrypt token
+      if (passphrase) {
+        valueToStore = await this._encrypt(token, passphrase);
+        await browser.storage.local.set({ [this.KEYS.ENCRYPTION_ENABLED]: true });
+      }
+
+      await browser.storage.local.set({ [key]: valueToStore });
+      return true;
+    } catch (e) {
+      console.error('[Capsula] Failed to set token:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Clear token for a service
+   * @param {'github'|'notion'} service
+   * @returns {Promise<boolean>}
+   */
+  async clearToken(service) {
+    try {
+      const key = service === 'github' ? this.KEYS.GITHUB_TOKEN : this.KEYS.NOTION_TOKEN;
+      await browser.storage.local.remove(key);
+      return true;
+    } catch (e) {
+      console.error('[Capsula] Failed to clear token:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Get configuration for a service
+   * @param {'github'|'notion'} service
+   * @returns {Promise<Object>}
+   */
+  async getConfig(service) {
+    try {
+      const key = service === 'github' ? this.KEYS.GITHUB_CONFIG : this.KEYS.NOTION_CONFIG;
+      const result = await browser.storage.local.get(key);
+      return result[key] || {};
+    } catch (e) {
+      console.error('[Capsula] Failed to get config:', e);
+      return {};
+    }
+  },
+
+  /**
+   * Set configuration for a service
+   * @param {'github'|'notion'} service
+   * @param {Object} config
+   * @returns {Promise<boolean>}
+   */
+  async setConfig(service, config) {
+    try {
+      const key = service === 'github' ? this.KEYS.GITHUB_CONFIG : this.KEYS.NOTION_CONFIG;
+      await browser.storage.local.set({ [key]: config });
+      return true;
+    } catch (e) {
+      console.error('[Capsula] Failed to set config:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Encrypt token using Web Crypto API (PBKDF2 + AES-GCM)
+   * @private
+   */
+  async _encrypt(token, passphrase) {
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    // Derive key from passphrase
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(passphrase),
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+
+    // Encrypt token
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv },
+      key,
+      enc.encode(token)
+    );
+
+    // Return base64-encoded encrypted data with salt and iv
+    return JSON.stringify({
+      encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+      salt: Array.from(salt),
+      iv: Array.from(iv)
+    });
+  },
+
+  /**
+   * Decrypt token using Web Crypto API
+   * @private
+   */
+  async _decrypt(encryptedData) {
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+    const data = JSON.parse(encryptedData);
+
+    // This is a simplified version - in production, would need to store/retrieve passphrase
+    // For MVP, we'll skip encryption and just use plain storage
+    throw new Error('Decryption requires passphrase - not implemented in MVP');
+  }
+};
+
+/* ===========================
+   HTTP Request Module
+   =========================== */
+/**
+ * HTTP client with retry logic, rate limiting, and exponential backoff.
+ * Handles GitHub and Notion API specifics.
+ *
+ * @typedef {Object} NormalizedError
+ * @property {'AUTH'|'SCOPE'|'RATE_LIMIT'|'PAYLOAD_TOO_LARGE'|'NETWORK'|'VALIDATION'|'UNKNOWN'} code
+ * @property {string} message
+ * @property {string} [hint]
+ * @property {*} [raw]
+ */
+const HttpClient = {
+  MAX_RETRIES: 3,
+  TIMEOUT_MS: 30000,
+
+  /**
+   * Make HTTP request with retry and rate limit handling
+   * @param {string} url
+   * @param {RequestInit} options
+   * @param {number} [attempt=0]
+   * @returns {Promise<{ok: boolean, data?: any, error?: NormalizedError}>}
+   */
+  async request(url, options = {}, attempt = 0) {
+    // Check if online
+    if (!navigator.onLine) {
+      return {
+        ok: false,
+        error: {
+          code: 'NETWORK',
+          message: "You're offline",
+          hint: 'Check your internet connection and try again.'
+        }
+      };
+    }
+
+    try {
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // Handle rate limiting
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : this._calculateBackoff(attempt);
+
+        if (attempt < this.MAX_RETRIES) {
+          await this._sleep(waitMs);
+          return this.request(url, options, attempt + 1);
+        }
+
+        return {
+          ok: false,
+          error: {
+            code: 'RATE_LIMIT',
+            message: 'Rate limit exceeded',
+            hint: `Please wait ${Math.ceil(waitMs / 1000)} seconds and try again.`,
+            raw: { retryAfter }
+          }
+        };
+      }
+
+      // Handle server errors with retry
+      if (response.status >= 500 && attempt < this.MAX_RETRIES) {
+        const waitMs = this._calculateBackoff(attempt);
+        await this._sleep(waitMs);
+        return this.request(url, options, attempt + 1);
+      }
+
+      // Parse response
+      const data = await response.json().catch(() => ({}));
+
+      // Handle successful response
+      if (response.ok) {
+        return { ok: true, data };
+      }
+
+      // Handle error responses
+      return {
+        ok: false,
+        error: this._normalizeError(response.status, data, url)
+      };
+
+    } catch (err) {
+      // Handle network errors
+      if (err.name === 'AbortError') {
+        return {
+          ok: false,
+          error: {
+            code: 'NETWORK',
+            message: 'Request timed out',
+            hint: 'The request took too long. Please try again.'
+          }
+        };
+      }
+
+      // Retry on network error
+      if (attempt < this.MAX_RETRIES) {
+        const waitMs = this._calculateBackoff(attempt);
+        await this._sleep(waitMs);
+        return this.request(url, options, attempt + 1);
+      }
+
+      return {
+        ok: false,
+        error: {
+          code: 'NETWORK',
+          message: err.message || 'Network error',
+          hint: 'Check your internet connection and try again.',
+          raw: err
+        }
+      };
+    }
+  },
+
+  /**
+   * Normalize API errors to standard format
+   * @private
+   */
+  _normalizeError(status, data, url) {
+    const isGitHub = url.includes('api.github.com');
+    const isNotion = url.includes('api.notion.com');
+
+    switch (status) {
+      case 401:
+        return {
+          code: 'AUTH',
+          message: 'Invalid or expired token',
+          hint: 'Please check your token and try again.'
+        };
+
+      case 403:
+        if (isGitHub && data.message?.includes('scope')) {
+          return {
+            code: 'SCOPE',
+            message: 'Insufficient token permissions',
+            hint: 'Your token needs additional scopes. For Gists, use "gist" scope. For Issues, add "repo" or "public_repo" scope.'
+          };
+        }
+        return {
+          code: 'AUTH',
+          message: 'Access forbidden',
+          hint: 'Your token may not have the required permissions.'
+        };
+
+      case 404:
+        return {
+          code: 'VALIDATION',
+          message: 'Resource not found',
+          hint: isGitHub ? 'Check that the repository exists and you have access.' : 'Check that the parent page exists and is shared with your integration.'
+        };
+
+      case 400:
+      case 422:
+        if (isNotion && data.message?.includes('parent')) {
+          return {
+            code: 'VALIDATION',
+            message: 'Invalid parent page or database',
+            hint: 'Make sure the parent page/database is shared with your Notion integration.'
+          };
+        }
+        if (isGitHub && (data.message?.includes('too large') || data.message?.includes('size'))) {
+          return {
+            code: 'PAYLOAD_TOO_LARGE',
+            message: 'Content is too large',
+            hint: 'The conversation will be split into multiple files automatically.'
+          };
+        }
+        return {
+          code: 'VALIDATION',
+          message: data.message || 'Invalid request',
+          hint: 'Please check your input and try again.',
+          raw: data
+        };
+
+      default:
+        return {
+          code: 'UNKNOWN',
+          message: data.message || `Request failed with status ${status}`,
+          hint: 'An unexpected error occurred. Please try again.',
+          raw: data
+        };
+    }
+  },
+
+  /**
+   * Calculate exponential backoff with jitter
+   * @private
+   */
+  _calculateBackoff(attempt) {
+    const baseMs = 2000;
+    const exponential = baseMs * Math.pow(2, attempt);
+    const jitter = Math.random() * 1000;
+    return Math.min(exponential + jitter, 16000);
+  },
+
+  /**
+   * Sleep for specified milliseconds
+   * @private
+   */
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+};
+
+/* ===========================
+   Exporter Types & Registry
+   =========================== */
+/**
+ * @typedef {Object} ExportFilters
+ * @property {boolean} assistantOnly
+ * @property {boolean} code
+ * @property {boolean} tables
+ * @property {boolean} lists
+ */
+
+/**
+ * @typedef {Object} ExportResult
+ * @property {boolean} ok
+ * @property {string} [url]
+ * @property {NormalizedError} [error]
+ */
+
+/**
+ * @typedef {Object} Exporter
+ * @property {function(): Promise<{ok: boolean, identity?: string, scopes?: string[], error?: string}>} testConnection
+ * @property {function(Object, ExportFilters, Object): Promise<ExportResult>} export
+ */
+
+const ExporterRegistry = {
+  _exporters: new Map(),
+
+  /**
+   * Register an exporter
+   * @param {'github-gist'|'github-issue'|'notion'} service
+   * @param {Exporter} exporter
+   */
+  register(service, exporter) {
+    this._exporters.set(service, exporter);
+  },
+
+  /**
+   * Get an exporter
+   * @param {string} service
+   * @returns {Exporter|null}
+   */
+  get(service) {
+    return this._exporters.get(service) || null;
+  },
+
+  /**
+   * Check if a service is registered
+   * @param {string} service
+   * @returns {boolean}
+   */
+  has(service) {
+    return this._exporters.has(service);
+  }
+};
+
+/* ===========================
+   Integration Markdown Formatter
+   =========================== */
+/**
+ * Enhanced markdown formatter for GitHub and Notion exports.
+ * Handles large conversations with intelligent splitting.
+ */
+const IntegrationMarkdownFormatter = {
+  GITHUB_MAX_GIST_SIZE: 1_000_000, // 1MB
+  SPLIT_MARKER: '\n\n---\n\n',
+
+  /**
+   * Convert harvest to markdown with optional splitting for GitHub
+   * @param {Object} harvest
+   * @param {ExportFilters} filters
+   * @param {boolean} [enableSplitting=false]
+   * @returns {string|Object} - String if single file, Object with filenames as keys if split
+   */
+  toMarkdown(harvest, filters, enableSplitting = false) {
+    const messages = this._filterMessages(harvest.messages, filters);
+    const meta = harvest.meta || {};
+
+    // Build header
+    let markdown = this._buildHeader(meta, filters);
+
+    // Build content
+    const content = messages.map((msg, idx) => this._formatMessage(msg, idx)).join('\n\n');
+    markdown += content;
+
+    // Build footer with index
+    markdown += this._buildFooter(messages);
+
+    // Handle splitting if enabled
+    if (enableSplitting && markdown.length > this.GITHUB_MAX_GIST_SIZE) {
+      return this._splitMarkdown(markdown, meta.title || 'conversation');
+    }
+
+    return markdown;
+  },
+
+  /**
+   * Build markdown header
+   * @private
+   */
+  _buildHeader(meta, filters) {
+    const title = meta.title || 'ChatGPT Conversation';
+    const timestamp = new Date().toISOString();
+    const model = meta.model || 'Unknown';
+
+    let header = `# ${title}\n\n`;
+    header += `_Exported with [Capsula](https://seveneves.ai/capsula) on ${timestamp}_\n\n`;
+    header += `**Model**: ${model}\n\n`;
+
+    // Show active filters
+    const activeFilters = [];
+    if (filters.assistantOnly) activeFilters.push('Assistant Only');
+    if (filters.code) activeFilters.push('Code');
+    if (filters.tables) activeFilters.push('Tables');
+    if (filters.lists) activeFilters.push('Lists');
+
+    if (activeFilters.length > 0) {
+      header += `**Active Filters**: ${activeFilters.join(', ')}\n\n`;
+    }
+
+    header += '---\n\n';
+    return header;
+  },
+
+  /**
+   * Format a single message as markdown
+   * @private
+   */
+  _formatMessage(message, index) {
+    const role = message.role === 'user' ? 'User' : 'Assistant';
+    let md = `## Message ${index + 1}: ${role}\n\n`;
+
+    // Add thinking label if present
+    if (message.thinking?.labels?.length) {
+      md += `_${message.thinking.labels.join(', ')}_\n\n`;
+    }
+
+    // Add canvas marker
+    if (message.isCanvas) {
+      md += `📋 **Canvas**: ${message.canvasTitle || 'Untitled'} (${message.canvasType || 'document'})\n\n`;
+    }
+
+    // Add attachment marker
+    if (message.hasAttachment && message.attachment) {
+      md += `📎 **Attachment**: ${message.attachment.fileName}\n\n`;
+    }
+
+    // Format blocks
+    if (message.blocks && message.blocks.length > 0) {
+      md += message.blocks.map(block => this._formatBlock(block)).join('\n\n');
+    } else if (message.plain?.text) {
+      md += message.plain.text;
+    }
+
+    return md;
+  },
+
+  /**
+   * Format a content block as markdown
+   * @private
+   */
+  _formatBlock(block) {
+    switch (block.kind) {
+      case 'heading':
+        const level = Math.min(6, Math.max(1, (block.level || 1) + 2)); // Offset by 2 since message is h2
+        return `${'#'.repeat(level)} ${block.text || ''}`;
+
+      case 'para':
+        return block.md || '';
+
+      case 'code':
+        const lang = block.language || '';
+        return `\`\`\`${lang}\n${block.text || ''}\n\`\`\``;
+
+      case 'list':
+        const items = (block.items || []).map((item, i) => {
+          const prefix = block.ordered ? `${i + 1}. ` : '- ';
+          return `${prefix}${item}`;
+        }).join('\n');
+        return items;
+
+      case 'table':
+        // Return HTML table as-is (markdown tables are complex)
+        return block.html || '';
+
+      case 'quote':
+        return `> ${block.md || ''}`;
+
+      case 'math':
+        return `$$\n${block.latex || ''}\n$$`;
+
+      case 'divider':
+        return '---';
+
+      default:
+        return '';
+    }
+  },
+
+  /**
+   * Build footer with message index
+   * @private
+   */
+  _buildFooter(messages) {
+    let footer = '\n\n---\n\n## Message Index\n\n';
+    messages.forEach((msg, idx) => {
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      const preview = this._getMessagePreview(msg);
+      footer += `- [Message ${idx + 1}](#message-${idx + 1}-${role.toLowerCase()}): ${role} - ${preview}\n`;
+    });
+    return footer;
+  },
+
+  /**
+   * Get short preview of message content
+   * @private
+   */
+  _getMessagePreview(message) {
+    if (message.plain?.text) {
+      return message.plain.text.slice(0, 60).replace(/\n/g, ' ') + '...';
+    }
+    if (message.blocks?.length) {
+      const firstBlock = message.blocks[0];
+      if (firstBlock.text) return firstBlock.text.slice(0, 60) + '...';
+      if (firstBlock.md) return firstBlock.md.slice(0, 60) + '...';
+    }
+    return '(empty)';
+  },
+
+  /**
+   * Split markdown into multiple files if too large
+   * @private
+   * @returns {Object} - { 'filename.md': content, ... }
+   */
+  _splitMarkdown(markdown, title) {
+    const baseName = title.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    const files = {};
+    const maxSize = this.GITHUB_MAX_GIST_SIZE - 10000; // Leave buffer
+
+    // Split by messages (using ## Message pattern)
+    const parts = markdown.split(/(?=^## Message \d+)/m);
+    const header = parts[0];
+    const messages = parts.slice(1);
+
+    let currentPart = 1;
+    let currentContent = header;
+
+    messages.forEach((msg, idx) => {
+      if (currentContent.length + msg.length > maxSize) {
+        // Save current part
+        files[`${baseName}-part-${String(currentPart).padStart(3, '0')}.md`] = currentContent;
+        currentPart++;
+        currentContent = header + `\n\n_Continued from part ${currentPart - 1}_\n\n`;
+      }
+      currentContent += msg + '\n\n';
+    });
+
+    // Save final part
+    files[`${baseName}-part-${String(currentPart).padStart(3, '0')}.md`] = currentContent;
+
+    // Create index file
+    const indexContent = this._buildSplitIndex(baseName, title, Object.keys(files));
+    files[`${baseName}-index.md`] = indexContent;
+
+    return files;
+  },
+
+  /**
+   * Build index file for split conversations
+   * @private
+   */
+  _buildSplitIndex(baseName, title, filenames) {
+    let index = `# ${title}\n\n`;
+    index += `_This conversation was split into multiple files due to size._\n\n`;
+    index += `## Parts\n\n`;
+    filenames.forEach((filename, idx) => {
+      if (!filename.includes('index')) {
+        index += `${idx + 1}. [${filename}](./${filename})\n`;
+      }
+    });
+    return index;
+  },
+
+  /**
+   * Filter messages based on filters
+   * @private
+   */
+  _filterMessages(messages, filters) {
+    let filtered = [...messages];
+
+    if (filters.assistantOnly) {
+      filtered = filtered.filter(m => m.role === 'assistant');
+    }
+
+    if (filters.code) {
+      filtered = filtered.filter(m =>
+        m.blocks?.some(b => b.kind === 'code')
+      );
+    }
+
+    if (filters.tables) {
+      filtered = filtered.filter(m =>
+        m.blocks?.some(b => b.kind === 'table')
+      );
+    }
+
+    if (filters.lists) {
+      filtered = filtered.filter(m =>
+        m.blocks?.some(b => b.kind === 'list')
+      );
+    }
+
+    return filtered;
+  }
+};
+
+/* ===========================
+   Notion Blocks Converter
+   =========================== */
+/**
+ * Converts Capsula message format to Notion blocks API format.
+ * Handles chunking for large content (max 1800 chars per block).
+ */
+const NotionBlocksConverter = {
+  MAX_CHARS_PER_BLOCK: 1800,
+  MAX_BLOCKS_PER_REQUEST: 100,
+
+  /**
+   * Convert harvest to Notion blocks
+   * @param {Object} harvest
+   * @param {ExportFilters} filters
+   * @returns {Array} - Array of Notion block objects
+   */
+  toBlocks(harvest, filters) {
+    const messages = IntegrationMarkdownFormatter._filterMessages(harvest.messages, filters);
+    const blocks = [];
+
+    // Add title and metadata as initial blocks
+    blocks.push(...this._buildHeaderBlocks(harvest.meta, filters));
+
+    // Convert each message to blocks
+    messages.forEach((msg, idx) => {
+      blocks.push(...this._messageToBlocks(msg, idx));
+    });
+
+    return blocks;
+  },
+
+  /**
+   * Build header blocks for Notion page
+   * @private
+   */
+  _buildHeaderBlocks(meta, filters) {
+    const blocks = [];
+    const timestamp = new Date().toISOString().split('T')[0];
+
+    // Metadata paragraph
+    let metaText = `Exported with Capsula on ${timestamp}`;
+    if (meta.model) metaText += ` • Model: ${meta.model}`;
+
+    blocks.push({
+      object: 'block',
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [{
+          type: 'text',
+          text: { content: metaText },
+          annotations: { italic: true, color: 'gray' }
+        }]
+      }
+    });
+
+    // Active filters (if any)
+    const activeFilters = [];
+    if (filters.assistantOnly) activeFilters.push('Assistant Only');
+    if (filters.code) activeFilters.push('Code');
+    if (filters.tables) activeFilters.push('Tables');
+    if (filters.lists) activeFilters.push('Lists');
+
+    if (activeFilters.length > 0) {
+      blocks.push({
+        object: 'block',
+        type: 'callout',
+        callout: {
+          rich_text: [{
+            type: 'text',
+            text: { content: `Active Filters: ${activeFilters.join(', ')}` }
+          }],
+          icon: { emoji: '🔍' }
+        }
+      });
+    }
+
+    // Divider
+    blocks.push({
+      object: 'block',
+      type: 'divider',
+      divider: {}
+    });
+
+    return blocks;
+  },
+
+  /**
+   * Convert a single message to Notion blocks
+   * @private
+   */
+  _messageToBlocks(message, index) {
+    const blocks = [];
+    const role = message.role === 'user' ? 'User' : 'Assistant';
+    const emoji = message.role === 'user' ? '👤' : '🤖';
+
+    // Message header as heading
+    blocks.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [{
+          type: 'text',
+          text: { content: `${emoji} Message ${index + 1}: ${role}` },
+          annotations: { bold: true }
+        }]
+      }
+    });
+
+    // Thinking label (if present)
+    if (message.thinking?.labels?.length) {
+      blocks.push({
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [{
+            type: 'text',
+            text: { content: message.thinking.labels.join(', ') },
+            annotations: { italic: true, color: 'gray' }
+          }]
+        }
+      });
+    }
+
+    // Canvas marker
+    if (message.isCanvas) {
+      blocks.push({
+        object: 'block',
+        type: 'callout',
+        callout: {
+          rich_text: [{
+            type: 'text',
+            text: { content: `Canvas: ${message.canvasTitle || 'Untitled'} (${message.canvasType || 'document'})` }
+          }],
+          icon: { emoji: '📋' }
+        }
+      });
+    }
+
+    // Attachment marker
+    if (message.hasAttachment && message.attachment) {
+      blocks.push({
+        object: 'block',
+        type: 'callout',
+        callout: {
+          rich_text: [{
+            type: 'text',
+            text: { content: `Attachment: ${message.attachment.fileName}` }
+          }],
+          icon: { emoji: '📎' }
+        }
+      });
+    }
+
+    // Convert message blocks
+    if (message.blocks && message.blocks.length > 0) {
+      message.blocks.forEach(block => {
+        blocks.push(...this._blockToNotionBlocks(block));
+      });
+    } else if (message.plain?.text) {
+      blocks.push(...this._textToParagraphBlocks(message.plain.text));
+    }
+
+    return blocks;
+  },
+
+  /**
+   * Convert a content block to Notion blocks
+   * @private
+   */
+  _blockToNotionBlocks(block) {
+    switch (block.kind) {
+      case 'heading':
+        const level = Math.min(3, Math.max(1, (block.level || 1)));
+        const headingType = `heading_${level}`;
+        return [{
+          object: 'block',
+          type: headingType,
+          [headingType]: {
+            rich_text: this._chunkText(block.text || '', this.MAX_CHARS_PER_BLOCK)
+          }
+        }];
+
+      case 'para':
+        return this._textToParagraphBlocks(block.md || '');
+
+      case 'code':
+        return this._codeToBlocks(block.text || '', block.language);
+
+      case 'list':
+        return this._listToBlocks(block.items || [], block.ordered);
+
+      case 'quote':
+        return [{
+          object: 'block',
+          type: 'quote',
+          quote: {
+            rich_text: this._chunkText(block.md || '', this.MAX_CHARS_PER_BLOCK)
+          }
+        }];
+
+      case 'table':
+        // Tables are complex in Notion - render as toggle with HTML
+        return [{
+          object: 'block',
+          type: 'toggle',
+          toggle: {
+            rich_text: [{ type: 'text', text: { content: 'Table (HTML)' } }],
+            children: [{
+              object: 'block',
+              type: 'paragraph',
+              paragraph: {
+                rich_text: this._chunkText(block.html || '', this.MAX_CHARS_PER_BLOCK)
+              }
+            }]
+          }
+        }];
+
+      case 'divider':
+        return [{
+          object: 'block',
+          type: 'divider',
+          divider: {}
+        }];
+
+      default:
+        return [];
+    }
+  },
+
+  /**
+   * Convert text to paragraph blocks with chunking
+   * @private
+   */
+  _textToParagraphBlocks(text) {
+    const chunks = this._chunkText(text, this.MAX_CHARS_PER_BLOCK);
+    return chunks.map(chunk => ({
+      object: 'block',
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [chunk]
+      }
+    }));
+  },
+
+  /**
+   * Convert code to Notion code blocks with chunking
+   * @private
+   */
+  _codeToBlocks(code, language = 'plain text') {
+    // Notion has specific language names
+    const notionLang = this._mapLanguage(language);
+
+    // Split code if too long
+    if (code.length <= this.MAX_CHARS_PER_BLOCK) {
+      return [{
+        object: 'block',
+        type: 'code',
+        code: {
+          rich_text: [{
+            type: 'text',
+            text: { content: code }
+          }],
+          language: notionLang
+        }
+      }];
+    }
+
+    // Split into multiple code blocks
+    const chunks = this._chunkCode(code, this.MAX_CHARS_PER_BLOCK);
+    return chunks.map((chunk, idx) => ({
+      object: 'block',
+      type: 'code',
+      code: {
+        rich_text: [{
+          type: 'text',
+          text: { content: `// Part ${idx + 1}/${chunks.length}\n${chunk}` }
+        }],
+        language: notionLang
+      }
+    }));
+  },
+
+  /**
+   * Convert list to Notion list blocks
+   * @private
+   */
+  _listToBlocks(items, ordered = false) {
+    const blockType = ordered ? 'numbered_list_item' : 'bulleted_list_item';
+    return items.map(item => ({
+      object: 'block',
+      type: blockType,
+      [blockType]: {
+        rich_text: this._chunkText(item, this.MAX_CHARS_PER_BLOCK)
+      }
+    }));
+  },
+
+  /**
+   * Chunk text into rich_text array (max chars per chunk)
+   * @private
+   */
+  _chunkText(text, maxChars) {
+    if (text.length <= maxChars) {
+      return [{ type: 'text', text: { content: text } }];
+    }
+
+    const chunks = [];
+    for (let i = 0; i < text.length; i += maxChars) {
+      chunks.push({
+        type: 'text',
+        text: { content: text.slice(i, i + maxChars) }
+      });
+    }
+    return chunks;
+  },
+
+  /**
+   * Chunk code preserving line breaks
+   * @private
+   */
+  _chunkCode(code, maxChars) {
+    const lines = code.split('\n');
+    const chunks = [];
+    let currentChunk = '';
+
+    for (const line of lines) {
+      if (currentChunk.length + line.length + 1 > maxChars) {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = line;
+      } else {
+        currentChunk += (currentChunk ? '\n' : '') + line;
+      }
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    return chunks;
+  },
+
+  /**
+   * Map common language names to Notion's supported languages
+   * @private
+   */
+  _mapLanguage(lang) {
+    const map = {
+      'js': 'javascript',
+      'ts': 'typescript',
+      'py': 'python',
+      'rb': 'ruby',
+      'sh': 'shell',
+      'bash': 'shell',
+      'yml': 'yaml',
+      'md': 'markdown'
+    };
+    return map[lang.toLowerCase()] || lang.toLowerCase() || 'plain text';
+  },
+
+  /**
+   * Batch blocks into chunks for API requests
+   * @param {Array} blocks
+   * @returns {Array<Array>} - Array of block batches
+   */
+  batchBlocks(blocks) {
+    const batches = [];
+    for (let i = 0; i < blocks.length; i += this.MAX_BLOCKS_PER_REQUEST) {
+      batches.push(blocks.slice(i, i + this.MAX_BLOCKS_PER_REQUEST));
+    }
+    return batches;
+  }
+};
+
+/* ===========================
+   GitHub Exporter
+   =========================== */
+/**
+ * GitHub integration for creating Gists and Issues.
+ * Implements the Exporter interface.
+ */
+const GitHubExporter = {
+  API_BASE: 'https://api.github.com',
+  API_VERSION: '2022-11-28',
+
+  /**
+   * Test GitHub connection and get user info
+   * @returns {Promise<{ok: boolean, identity?: string, scopes?: string[], error?: string}>}
+   */
+  async testConnection() {
+    const token = await IntegrationStorage.getToken('github');
+    if (!token) {
+      return { ok: false, error: 'No token configured' };
+    }
+
+    // Test rate limit endpoint (doesn't require specific scopes)
+    const result = await HttpClient.request(`${this.API_BASE}/rate_limit`, {
+      method: 'GET',
+      headers: this._getHeaders(token)
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error.message };
+    }
+
+    // Get user info
+    const userResult = await HttpClient.request(`${this.API_BASE}/user`, {
+      method: 'GET',
+      headers: this._getHeaders(token)
+    });
+
+    if (!userResult.ok) {
+      return { ok: false, error: userResult.error.message };
+    }
+
+    // Parse scopes from X-OAuth-Scopes header (if available)
+    const scopes = []; // GitHub doesn't always return scopes in response
+
+    return {
+      ok: true,
+      identity: userResult.data.login,
+      scopes
+    };
+  },
+
+  /**
+   * Export to GitHub Gist or Issue
+   * @param {Object} harvest
+   * @param {ExportFilters} filters
+   * @param {Object} options
+   * @param {string} options.visibility - 'public' or 'private'
+   * @param {boolean} [options.createIssue=false]
+   * @param {string} [options.repo] - Required if createIssue is true
+   * @param {string} [options.description]
+   * @param {function} [options.onProgress] - Progress callback
+   * @returns {Promise<ExportResult>}
+   */
+  async export(harvest, filters, options = {}) {
+    const token = await IntegrationStorage.getToken('github');
+    if (!token) {
+      return {
+        ok: false,
+        error: {
+          code: 'AUTH',
+          message: 'No GitHub token configured',
+          hint: 'Please configure your GitHub token in settings.'
+        }
+      };
+    }
+
+    // Check if we should create an issue or gist
+    if (options.createIssue) {
+      return this._createIssue(harvest, filters, options, token);
+    } else {
+      return this._createGist(harvest, filters, options, token);
+    }
+  },
+
+  /**
+   * Create a GitHub Gist
+   * @private
+   */
+  async _createGist(harvest, filters, options, token) {
+    const { onProgress } = options;
+
+    if (onProgress) onProgress({ step: 'PREPARING', message: 'Preparing markdown...' });
+
+    // Generate markdown (with splitting if needed)
+    const markdown = IntegrationMarkdownFormatter.toMarkdown(harvest, filters, true);
+
+    // Build files object
+    let files;
+    if (typeof markdown === 'string') {
+      // Single file
+      const filename = this._generateFilename(harvest.meta?.title);
+      files = {
+        [filename]: { content: markdown }
+      };
+    } else {
+      // Multiple files (already split)
+      files = {};
+      for (const [filename, content] of Object.entries(markdown)) {
+        files[filename] = { content };
+      }
+    }
+
+    if (onProgress) onProgress({ step: 'UPLOADING_1_OF_1', message: 'Creating gist...' });
+
+    // Create gist
+    const description = options.description || `Capsula export: ${harvest.meta?.title || 'Conversation'} (${new Date().toISOString().split('T')[0]})`;
+    const isPublic = options.visibility === 'public';
+
+    const result = await HttpClient.request(`${this.API_BASE}/gists`, {
+      method: 'POST',
+      headers: this._getHeaders(token),
+      body: JSON.stringify({
+        description,
+        public: isPublic,
+        files
+      })
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    if (onProgress) onProgress({ step: 'SUCCESS', message: 'Gist created successfully!' });
+
+    return {
+      ok: true,
+      url: result.data.html_url
+    };
+  },
+
+  /**
+   * Create a GitHub Issue
+   * @private
+   */
+  async _createIssue(harvest, filters, options, token) {
+    const { repo, onProgress } = options;
+
+    if (!repo) {
+      return {
+        ok: false,
+        error: {
+          code: 'VALIDATION',
+          message: 'Repository is required for issue creation',
+          hint: 'Please provide a repository in the format owner/repo.'
+        }
+      };
+    }
+
+    if (onProgress) onProgress({ step: 'PREPARING', message: 'Preparing content...' });
+
+    // Generate markdown (no splitting for issues)
+    const markdown = IntegrationMarkdownFormatter.toMarkdown(harvest, filters, false);
+
+    // Truncate if too long (GitHub issues have limits)
+    const MAX_ISSUE_BODY = 65536;
+    let body = markdown;
+    if (body.length > MAX_ISSUE_BODY) {
+      body = body.slice(0, MAX_ISSUE_BODY - 200) + '\n\n... (truncated due to length)';
+    }
+
+    if (onProgress) onProgress({ step: 'UPLOADING_1_OF_1', message: 'Creating issue...' });
+
+    // Create issue
+    const title = options.title || `Capsula Export: ${harvest.meta?.title || 'Conversation'}`;
+    const labels = options.labels || [];
+
+    const result = await HttpClient.request(`${this.API_BASE}/repos/${repo}/issues`, {
+      method: 'POST',
+      headers: this._getHeaders(token),
+      body: JSON.stringify({
+        title,
+        body,
+        labels
+      })
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    if (onProgress) onProgress({ step: 'SUCCESS', message: 'Issue created successfully!' });
+
+    return {
+      ok: true,
+      url: result.data.html_url
+    };
+  },
+
+  /**
+   * Get request headers
+   * @private
+   */
+  _getHeaders(token) {
+    return {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': this.API_VERSION,
+      'Content-Type': 'application/json'
+    };
+  },
+
+  /**
+   * Generate filename for gist
+   * @private
+   */
+  _generateFilename(title) {
+    const date = new Date().toISOString().split('T')[0];
+    const safeName = (title || 'conversation')
+      .replace(/[^a-z0-9]/gi, '-')
+      .toLowerCase()
+      .slice(0, 50);
+    return `${safeName}-${date}.md`;
+  }
+};
+
+/* ===========================
+   Notion Exporter
+   =========================== */
+/**
+ * Notion integration for creating pages with blocks.
+ * Implements the Exporter interface.
+ */
+const NotionExporter = {
+  API_BASE: 'https://api.notion.com/v1',
+  API_VERSION: '2022-06-28',
+
+  /**
+   * Test Notion connection and get bot info
+   * @returns {Promise<{ok: boolean, identity?: string, error?: string}>}
+   */
+  async testConnection() {
+    const token = await IntegrationStorage.getToken('notion');
+    if (!token) {
+      return { ok: false, error: 'No token configured' };
+    }
+
+    // Test connection by getting bot info
+    const result = await HttpClient.request(`${this.API_BASE}/users/me`, {
+      method: 'GET',
+      headers: this._getHeaders(token)
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error.message };
+    }
+
+    const botName = result.data.bot?.owner?.user?.name || result.data.name || 'Notion Integration';
+
+    return {
+      ok: true,
+      identity: botName
+    };
+  },
+
+  /**
+   * Search for pages accessible to the integration
+   * @param {string} query - Search query (empty for all pages)
+   * @returns {Promise<{ok: boolean, pages?: Array, error?: any}>}
+   */
+  async searchPages(query = '') {
+    const token = await IntegrationStorage.getToken('notion');
+    if (!token) {
+      return { ok: false, error: { message: 'No token configured' } };
+    }
+
+    const result = await HttpClient.request(`${this.API_BASE}/search`, {
+      method: 'POST',
+      headers: this._getHeaders(token),
+      body: JSON.stringify({
+        query,
+        filter: { property: 'object', value: 'page' },
+        page_size: 100
+      })
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    return {
+      ok: true,
+      pages: result.data.results || []
+    };
+  },
+
+  /**
+   * Export to Notion page
+   * @param {Object} harvest
+   * @param {ExportFilters} filters
+   * @param {Object} options
+   * @param {string} options.parentId - Parent page or database ID
+   * @param {string} options.parentType - 'page' or 'database'
+   * @param {string} [options.title] - Page title (defaults to conversation title)
+   * @param {function} [options.onProgress] - Progress callback
+   * @returns {Promise<ExportResult>}
+   */
+  async export(harvest, filters, options = {}) {
+    const token = await IntegrationStorage.getToken('notion');
+    if (!token) {
+      return {
+        ok: false,
+        error: {
+          code: 'AUTH',
+          message: 'No Notion token configured',
+          hint: 'Please configure your Notion integration token in settings.'
+        }
+      };
+    }
+
+    const { parentId, parentType, onProgress } = options;
+
+    if (!parentId) {
+      return {
+        ok: false,
+        error: {
+          code: 'VALIDATION',
+          message: 'Parent page or database is required',
+          hint: 'Please select a parent page or database for the export.'
+        }
+      };
+    }
+
+    try {
+      // Step 1: Prepare blocks
+      if (onProgress) onProgress({ step: 'PREPARING', message: 'Converting to Notion blocks...' });
+
+      const blocks = NotionBlocksConverter.toBlocks(harvest, filters);
+      const batches = NotionBlocksConverter.batchBlocks(blocks);
+
+      // Step 2: Create page
+      if (onProgress) onProgress({ step: 'VALIDATING', message: 'Creating Notion page...' });
+
+      const pageResult = await this._createPage(harvest, parentId, parentType, options.title, token);
+
+      if (!pageResult.ok) {
+        return { ok: false, error: pageResult.error };
+      }
+
+      const pageId = pageResult.pageId;
+
+      // Step 3: Append blocks in batches
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const step = `UPLOADING_${i + 1}_OF_${batches.length}`;
+        const message = `Uploading batch ${i + 1} of ${batches.length}...`;
+
+        if (onProgress) onProgress({ step, message });
+
+        const appendResult = await this._appendBlocks(pageId, batch, token);
+
+        if (!appendResult.ok) {
+          return { ok: false, error: appendResult.error };
+        }
+
+        // Small delay between batches to avoid rate limiting
+        if (i < batches.length - 1) {
+          await this._sleep(200);
+        }
+      }
+
+      // Step 4: Success
+      if (onProgress) onProgress({ step: 'FINALIZING', message: 'Finalizing...' });
+
+      const pageUrl = `https://www.notion.so/${pageId.replace(/-/g, '')}`;
+
+      if (onProgress) onProgress({ step: 'SUCCESS', message: 'Page created successfully!' });
+
+      return {
+        ok: true,
+        url: pageUrl
+      };
+
+    } catch (err) {
+      return {
+        ok: false,
+        error: {
+          code: 'UNKNOWN',
+          message: err.message || 'An unexpected error occurred',
+          raw: err
+        }
+      };
+    }
+  },
+
+  /**
+   * Create Notion page
+   * @private
+   */
+  async _createPage(harvest, parentId, parentType, customTitle, token) {
+    const title = customTitle || harvest.meta?.title || 'ChatGPT Conversation';
+
+    const parent = parentType === 'database'
+      ? { database_id: parentId }
+      : { page_id: parentId };
+
+    const properties = parentType === 'database'
+      ? {
+          Name: {
+            title: [{ type: 'text', text: { content: title } }]
+          }
+        }
+      : {};
+
+    const children = parentType === 'page'
+      ? [{
+          object: 'block',
+          type: 'heading_1',
+          heading_1: {
+            rich_text: [{ type: 'text', text: { content: title } }]
+          }
+        }]
+      : [];
+
+    const result = await HttpClient.request(`${this.API_BASE}/pages`, {
+      method: 'POST',
+      headers: this._getHeaders(token),
+      body: JSON.stringify({
+        parent,
+        properties: Object.keys(properties).length > 0 ? properties : undefined,
+        children: children.length > 0 ? children : undefined
+      })
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    return {
+      ok: true,
+      pageId: result.data.id
+    };
+  },
+
+  /**
+   * Append blocks to page
+   * @private
+   */
+  async _appendBlocks(pageId, blocks, token) {
+    const result = await HttpClient.request(`${this.API_BASE}/blocks/${pageId}/children`, {
+      method: 'PATCH',
+      headers: this._getHeaders(token),
+      body: JSON.stringify({
+        children: blocks
+      })
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    return { ok: true };
+  },
+
+  /**
+   * Get request headers
+   * @private
+   */
+  _getHeaders(token) {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': this.API_VERSION,
+      'Content-Type': 'application/json'
+    };
+  },
+
+  /**
+   * Sleep helper
+   * @private
+   */
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+};
+
+// Register exporters
+ExporterRegistry.register('github-gist', GitHubExporter);
+ExporterRegistry.register('github-issue', GitHubExporter);
+ExporterRegistry.register('notion', NotionExporter);
 
 /* ===========================
    Export Manager (Enhanced)
