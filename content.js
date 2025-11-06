@@ -4401,11 +4401,11 @@ const GitHubExporter = {
     const result = await HttpClient.request(`${this.API_BASE}/gists`, {
       method: 'POST',
       headers: this._getHeaders(token),
-      body: JSON.stringify({
+      body: {
         description,
         public: isPublic,
         files
-      })
+      }
     });
 
     if (!result.ok) {
@@ -4459,11 +4459,11 @@ const GitHubExporter = {
     const result = await HttpClient.request(`${this.API_BASE}/repos/${repo}/issues`, {
       method: 'POST',
       headers: this._getHeaders(token),
-      body: JSON.stringify({
+      body: {
         title,
         body,
         labels
-      })
+      }
     });
 
     if (!result.ok) {
@@ -4558,11 +4558,11 @@ const NotionExporter = {
     const result = await HttpClient.request(`${this.API_BASE}/search`, {
       method: 'POST',
       headers: this._getHeaders(token),
-      body: JSON.stringify({
+      body: {
         query,
         filter: { property: 'object', value: 'page' },
         page_size: 100
-      })
+      }
     });
 
     if (!result.ok) {
@@ -4706,11 +4706,11 @@ const NotionExporter = {
     const result = await HttpClient.request(`${this.API_BASE}/pages`, {
       method: 'POST',
       headers: this._getHeaders(token),
-      body: JSON.stringify({
+      body: {
         parent,
         properties: Object.keys(properties).length > 0 ? properties : undefined,
         children: children.length > 0 ? children : undefined
-      })
+      }
     });
 
     if (!result.ok) {
@@ -4731,9 +4731,9 @@ const NotionExporter = {
     const result = await HttpClient.request(`${this.API_BASE}/blocks/${pageId}/children`, {
       method: 'PATCH',
       headers: this._getHeaders(token),
-      body: JSON.stringify({
+      body: {
         children: blocks
-      })
+      }
     });
 
     if (!result.ok) {
