@@ -16,6 +16,10 @@ It works directly inside ChatGPT (and later, other AI platforms) with advanced f
   - **Clipboard copy:** quick one-click copy in any format
   - **Right-click export:** export any single response
   - **Download to file:** auto-named with timestamps
+- **Integrations** (New!)
+  - **GitHub:** Export directly to Gists or Issues
+  - **Notion:** Create pages with rich formatting and blocks
+  - Client-side only, privacy-first, optional host permissions
 
 ### Advanced Selection & Filtering
 - **Interactive timeline**  
@@ -137,6 +141,98 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 
 ---
 
+## Integrations
+
+### GitHub Export
+Export conversations directly to GitHub as Gists or Issues.
+
+**Setup:**
+1. Open the export panel and click the settings gear icon
+2. Go to the "Integrations" section
+3. Create a GitHub Personal Access Token:
+   - Visit [GitHub Token Settings](https://github.com/settings/tokens/new?scopes=gist&description=Capsula)
+   - Select the **"gist"** scope (for Gists)
+   - For Issues, also add **"repo"** or **"public_repo"** scope
+   - Copy the generated token
+4. Paste the token into the "GitHub Personal Access Token" field
+5. Click "Test Connection" to verify
+6. Click "Save Settings"
+
+**Usage:**
+- Click the **GitHub** button in the export panel footer
+- Choose options:
+  - **Gist Filename**: Auto-generated with date
+  - **Description**: Optional description for your gist
+  - **Visibility**: Private (default) or Public
+  - **Advanced**: Create as GitHub Issue (requires repository)
+- Click "Create Gist"
+- URL automatically copied to clipboard
+
+**Features:**
+- Automatic file splitting for large conversations (>1MB)
+- Markdown format with full metadata
+- Progress tracking with visual feedback
+- Private gists by default
+- Optional GitHub Issue creation
+
+### Notion Export
+Export conversations directly to Notion as pages with rich formatting.
+
+**Setup:**
+1. Create a Notion Integration:
+   - Visit [Notion Integrations](https://www.notion.so/my-integrations)
+   - Click "New integration"
+   - Give it a name (e.g., "Capsula")
+   - Copy the "Internal Integration Token"
+2. Share a parent page with your integration:
+   - Open a Notion page where you want exports to go
+   - Click "Share" → "Invite"
+   - Select your integration
+3. In Capsula settings:
+   - Paste the token into "Integration Token"
+   - Click "Test Connection"
+   - Click "Save Settings"
+
+**Usage:**
+- Click the **Notion** button in the export panel footer
+- Configure options:
+  - **Page Title**: Auto-filled with conversation title
+  - **Parent Page**: Click "Select Parent Page..." and choose a page
+- Click "Create Page"
+- URL automatically copied to clipboard
+
+**Features:**
+- Rich formatting with Notion blocks (headings, paragraphs, code, lists, quotes)
+- Automatic content chunking for large conversations
+- Batch uploads with progress tracking (100 blocks per request)
+- Preserves code syntax highlighting
+- Canvas and attachment markers
+- Thinking labels included
+
+### Privacy & Permissions
+- Tokens stored locally in browser storage (never transmitted to third parties)
+- Optional encryption for tokens (Web Crypto API)
+- Host permissions requested only when first using an integration
+- All API calls made directly from your browser to GitHub/Notion
+- No Capsula servers involved
+- Tokens can be cleared anytime in settings
+
+### Troubleshooting
+
+**GitHub:**
+- **"Invalid token"**: Regenerate token with correct scopes
+- **"Access forbidden"**: Ensure token has "gist" scope
+- **"Rate limit exceeded"**: Wait a few minutes and try again
+- **For Issues**: Token needs "repo" or "public_repo" scope
+
+**Notion:**
+- **"No pages found"**: Share a parent page with your integration
+- **"Invalid parent"**: Verify the page is shared with your integration
+- **"Request failed"**: Check your integration token is correct
+- **Large conversations**: May take a minute due to batching (100 blocks at a time)
+
+---
+
 ## Technical Details
 - **Version:** 1.1.1
 - **Platform:** Firefox (Manifest V3)
@@ -202,7 +298,18 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### v1.1.1 (Latest)
+### v1.2.0 (Latest)
+- **GitHub Integration:** Export conversations directly to GitHub Gists or Issues
+- **Notion Integration:** Create Notion pages with rich block formatting
+- Automatic content chunking for large conversations (Notion: 100 blocks/request)
+- File splitting for oversized conversations (GitHub: >1MB auto-split)
+- Privacy-first integration architecture (client-side only, local token storage)
+- Optional host permissions requested on first use
+- Progress tracking with visual feedback
+- Comprehensive error handling and retry logic with exponential backoff
+- Integration settings UI with connection testing
+
+### v1.1.1
 - Added Firefox Add-ons store compliance metadata
 - No functional changes
 
