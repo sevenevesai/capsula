@@ -1854,8 +1854,15 @@ const IntegrationExportModal = {
       }
     };
 
+    // Apply message filtering (range selection + content filters)
+    const filteredMessages = MessageFilter.apply(harvest.messages);
+    const filteredHarvest = {
+      ...harvest,
+      messages: filteredMessages
+    };
+
     const exporter = ExporterRegistry.get('github-gist');
-    const result = await exporter.export(harvest, globalState.filters, options);
+    const result = await exporter.export(filteredHarvest, globalState.filters, options);
 
     if (result.ok) {
       this.showSuccess(shadow, result.url);
@@ -1890,8 +1897,15 @@ const IntegrationExportModal = {
       }
     };
 
+    // Apply message filtering (range selection + content filters)
+    const filteredMessages = MessageFilter.apply(harvest.messages);
+    const filteredHarvest = {
+      ...harvest,
+      messages: filteredMessages
+    };
+
     const exporter = ExporterRegistry.get('notion');
-    const result = await exporter.export(harvest, globalState.filters, options);
+    const result = await exporter.export(filteredHarvest, globalState.filters, options);
 
     if (result.ok) {
       this.showSuccess(shadow, result.url);
