@@ -31,11 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Filter buttons for content filtering
   - Positioned tooltips avoid viewport edges
 - **Tutorial Management**:
-  - Triggers automatically on panel open
-  - State tracking for completed tutorials (configurable)
-  - For testing: tutorials show every time (production: once per user)
+  - Triggers automatically on first panel open
+  - State tracking with localStorage (shows once per user)
+  - "Restart Tutorial" button in Settings panel for refreshers
   - Clean fade animations and smooth transitions
   - Proper cleanup prevents interaction blocking
+  - Optional `alwaysShow` flag for testing purposes
 
 #### Enhanced Timeline with Multi-Selection
 - **Multi-Selection Support**: Advanced message selection with keyboard modifiers
