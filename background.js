@@ -139,12 +139,14 @@ async function makeHttpRequest(url, options = {}, attempt = 0) {
   const hasPerm = await browser.permissions.contains({ origins: [origin] });
 
   if (!hasPerm) {
+    const serviceName = origin.includes('github') ? 'GitHub' :
+                       origin.includes('notion') ? 'Notion' : 'this service';
     return {
       ok: false,
       error: {
         code: 'PERMISSION',
-        message: `Permission required for ${origin}`,
-        hint: 'The extension needs permission to access this service. Please grant permission when prompted.'
+        message: `Permission required for ${serviceName}`,
+        hint: `To enable: Right-click Capsula icon → Manage Extension → Permissions tab → Toggle ON permission for ${origin}`
       }
     };
   }

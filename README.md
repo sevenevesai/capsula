@@ -234,13 +234,14 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Technical Details
-- **Version:** 1.1.1
+- **Version:** 1.2.0
 - **Platform:** Firefox (Manifest V3)
-- **Implementation:** Content script only (no background process)
+- **Implementation:** Content script + background broker for API requests
 - **Dependencies:** None (self-contained)
 - **Font:** Matches ChatGPT's font stack automatically
 - **Code Detection:** Supports 20+ programming languages
 - **Metadata:** Thinking states, canvas artifacts, file attachments
+- **Integrations:** GitHub (Gists/Issues), Notion (Pages)
 
 ---
 

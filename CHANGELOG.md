@@ -7,6 +7,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2025-01-XX
+
+### 🎉 Major New Features
+
+#### GitHub Integration
+- **Export to GitHub Gists**: Create public or private gists directly from conversations
+  - Auto-generated filenames with date stamps
+  - Custom descriptions and visibility settings
+  - Automatic file splitting for conversations >1MB
+  - URL automatically copied to clipboard on success
+
+- **Export to GitHub Issues**: Create repository issues from conversations (Advanced option)
+  - Specify owner/repository format
+  - Requires "repo" or "public_repo" token scope
+  - Converts conversations to markdown-formatted issues
+
+- **GitHub Features**:
+  - Progress tracking with visual feedback
+  - Intelligent retry logic with exponential backoff (network failures)
+  - Comprehensive error handling with user-friendly messages
+  - Connection testing before first use
+  - Token validation and scope verification
+
+#### Notion Integration
+- **Export to Notion Pages**: Create rich, formatted pages in your Notion workspace
+  - Interactive parent page selector
+  - Support for pages and databases as parents
+  - Rich block formatting (headings, paragraphs, code, lists, quotes)
+  - Automatic content chunking (100 blocks per batch)
+  - Progress tracking for large conversations
+  - URL automatically copied to clipboard on success
+
+- **Notion Features**:
+  - Code blocks with syntax highlighting preservation
+  - Proper list nesting and formatting
+  - Block quote support
+  - Canvas and attachment markers preserved
+  - Thinking labels included in exports
+  - Batch upload optimization
+  - Connection testing and page search
+
+#### Integration Infrastructure
+- **Settings UI**: New integration settings panel
+  - Token management for GitHub and Notion
+  - Test connection functionality
+  - Clear, save, and validation features
+  - Encrypted local storage for tokens (Web Crypto API)
+  - Help text and setup instructions
+
+- **Background Request Broker**: CSP-compliant architecture
+  - Background script handles all external API calls
+  - Message-passing bridge between content script and background
+  - Fixes Content Security Policy violations
+  - Proper permission handling (optional_host_permissions)
+  - Permission prompts only when first using an integration
+
+- **Privacy & Security**:
+  - All tokens stored locally (never transmitted to Capsula servers)
+  - Optional host permissions (requested only when needed)
+  - Direct browser-to-API communication (no intermediaries)
+  - Clear token management with instant deletion
+  - No telemetry or tracking of export activity
+
+### ✨ Enhancements
+
+- **Message Filtering for Integrations**:
+  - Timeline range selection now applies to GitHub/Notion exports
+  - Content filters (assistant only, code, tables, lists) respected in integrations
+  - Export exactly what you see in the preview
+
+- **Modal Input Focus**:
+  - Fixed keyboard event isolation in export modals
+  - Prevents ChatGPT interference with modal inputs
+  - Smooth typing experience without focus loss
+
+- **Error Handling**:
+  - User-friendly error messages with actionable hints
+  - Automatic retry logic for transient network failures
+  - Rate limit detection and guidance
+  - Token scope validation and suggestions
+
+### 🔧 Fixed
+
+- Modal input losing focus on each keystroke
+- Double JSON stringification in markdown exporters
+- Content Security Policy violations in API calls
+- Filtered messages not being applied to integration exports
+- Export button duplication on modal re-open
+
+### 📚 Technical
+
+- Added `background.js` for CSP-compliant API requests
+- Added `storage` permission for token management
+- Added `optional_host_permissions` for GitHub and Notion APIs
+- Implemented message-passing architecture (content ↔ background)
+- Enhanced error handling with retry patterns
+- Improved modal event isolation
+
+### 🎨 UI/UX
+
+- New GitHub and Notion export buttons in footer
+- Integration icons and branding
+- Progress bars with step-by-step feedback
+- Success states with clickable URLs
+- Settings gear icon for quick access to configuration
+- Improved modal styling and responsiveness
+
+---
+
 ## [1.1.1] - 2025-01-XX
 
 ### Fixed
