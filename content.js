@@ -107,341 +107,536 @@ const CFG = {
 };
 
 /* ===========================
-   Tutorial Management (Versioned)
+   Tutorial System
    =========================== */
-/**
- * TutorialManager - Manages versioned tutorial state
- *
- * Features:
- * - Versioned tutorial keys (tutorial:v1, tutorial:v2, etc.)
- * - Uses browser.storage.local for persistence (survives domain shifts)
- * - Context-based nudges for first-time feature usage
- * - Non-intrusive 2-step guides
- *
- * When bumping tutorial version:
- * - Update TUTORIAL_VERSION constant
- * - Add new tutorial keys to defaults
- * - Users will see new tutorials once, old ones won't re-trigger
- */
-const TutorialManager = {
-  TUTORIAL_VERSION: 'v1', // Increment this to re-prompt all users
-  STORAGE_KEY: 'capsula_tutorial_state',
+const TutorialConfig = {
+  // Storage key for tutorial completion tracking
+  storageKey: 'capsula_tutorial_state',
 
-  /**
-   * Get tutorial state from browser.storage.local
-   * @returns {Promise<Object>}
-   */
-  async getState() {
-    try {
-      const result = await browser.storage.local.get(this.STORAGE_KEY);
-      const state = result[this.STORAGE_KEY] || {};
+  // Show tutorials only once (set to true for testing)
+  alwaysShow: false,
 
-      // Ensure version key exists
-      if (!state.version) {
-        state.version = this.TUTORIAL_VERSION;
-      }
+  // Animation timings
+  fadeInDuration: 300,
+  stepDelay: 800,
 
-      return state;
-    } catch (e) {
-      console.warn('[Capsula] Failed to load tutorial state:', e);
-      return { version: this.TUTORIAL_VERSION };
+  // Overlay styling
+  overlayZIndex: 2147483600,
+  spotlightBorder: '3px solid #3b82f6',
+  spotlightShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7), 0 0 20px rgba(59, 130, 246, 0.8)',
+
+  // Tooltip positioning
+  tooltipOffset: 12,
+  tooltipMaxWidth: 320,
+
+  // Tutorial flows
+  flows: {
+    welcome: {
+      id: 'welcome',
+      trigger: 'panel-open',
+      priority: 1,
+      steps: [
+        {
+          id: 'welcome-1',
+          title: '👋 Welcome to Capsula!',
+          description: 'Export your ChatGPT conversations with powerful selection and filtering tools. Let\'s take a quick tour!',
+          target: '.panel',
+          position: 'center',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-2',
+          title: '📊 Timeline Overview',
+          description: 'This vertical timeline shows your entire conversation. Each segment represents a message (blue = you, gray = ChatGPT). Click and drag to select a range of messages.',
+          target: '.timeline-panel',
+          position: 'right',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-3',
+          title: '🎯 Advanced Selection',
+          description: '<strong>Pro tip:</strong> Use keyboard shortcuts for precise control:<br>• <strong>Ctrl+Click:</strong> Toggle individual messages<br>• <strong>Shift+Click:</strong> Extend selection<br>• <strong>Right-Click:</strong> Clear all selections',
+          target: '.timeline-track',
+          position: 'right',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-4',
+          title: '💬 Preview Area',
+          description: 'See exactly what will be exported. Scroll through your conversation and review the content before exporting.',
+          target: '.chat-preview',
+          position: 'left',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-5',
+          title: '☑️ Message Checkboxes',
+          description: 'Each message has a checkbox toggle (look for the small checkbox on the role labels). Click to include/exclude specific messages from your export. Great for fine-tuning!',
+          target: '.chat-preview',
+          position: 'left',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-6',
+          title: '🎛️ Content Filters',
+          description: 'Quick filters let you show only what you need: Assistant messages only, Code blocks, Tables, or Lists. Mix and match!',
+          target: '.filter-buttons',
+          position: 'bottom',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-7',
+          title: '📄 Export Formats',
+          description: 'Choose your export format: <strong>Markdown</strong> (.md) for clean text, <strong>HTML</strong> for styled pages, or <strong>JSON</strong> for structured data.',
+          target: '.format-select',
+          position: 'top',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-8',
+          title: '🚀 GitHub Integration',
+          description: 'Export directly to <strong>GitHub Gists</strong> (public/private snippets) or <strong>GitHub Issues</strong>. Configure your token in Settings first!',
+          target: '.github-btn',
+          position: 'top',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-9',
+          title: '📝 Notion Integration',
+          description: 'Create beautiful <strong>Notion pages</strong> directly from your conversations. Select a parent page and Capsula handles the formatting!',
+          target: '.notion-btn',
+          position: 'top',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-10',
+          title: '✨ You\'re All Set!',
+          description: 'You\'re ready to export! Remember: hover over any button for quick tips. Access Settings (⚙️) to configure integrations or customize appearance.',
+          target: '.panel',
+          position: 'center',
+          buttons: ['done']
+        }
+      ]
     }
-  },
+  }
+};
 
-  /**
-   * Save tutorial state to browser.storage.local
-   * @param {Object} state
-   * @returns {Promise<boolean>}
-   */
-  async saveState(state) {
-    try {
-      await browser.storage.local.set({ [this.STORAGE_KEY]: state });
-      return true;
-    } catch (e) {
-      console.error('[Capsula] Failed to save tutorial state:', e);
-      return false;
-    }
-  },
+class TutorialState {
+  constructor() {
+    this.currentFlow = null;
+    this.currentStepIndex = 0;
+    this.completedFlows = new Set();
+    this.isActive = false;
+    this.load();
+  }
 
-  /**
-   * Check if a tutorial has been seen for the current version
-   * @param {string} tutorialKey - e.g. 'github_modal', 'notion_modal'
-   * @returns {Promise<boolean>}
-   */
-  async hasSeen(tutorialKey) {
-    const state = await this.getState();
-    const versionedKey = `${tutorialKey}:${this.TUTORIAL_VERSION}`;
-    return !!state[versionedKey];
-  },
-
-  /**
-   * Mark a tutorial as seen
-   * @param {string} tutorialKey
-   * @returns {Promise<boolean>}
-   */
-  async markSeen(tutorialKey) {
-    const state = await this.getState();
-    const versionedKey = `${tutorialKey}:${this.TUTORIAL_VERSION}`;
-    state[versionedKey] = true;
-    state.version = this.TUTORIAL_VERSION;
-    return await this.saveState(state);
-  },
-
-  /**
-   * Reset all tutorial state (for testing or user request)
-   * @returns {Promise<boolean>}
-   */
-  async reset() {
-    try {
-      await browser.storage.local.remove(this.STORAGE_KEY);
-      return true;
-    } catch (e) {
-      console.error('[Capsula] Failed to reset tutorial state:', e);
-      return false;
-    }
-  },
-
-  /**
-   * Show a context-based tutorial nudge
-   * @param {string} tutorialKey
-   * @param {Object} config
-   * @param {string} config.title - Tutorial title
-   * @param {Array<string>} config.steps - Array of step descriptions
-   * @param {HTMLElement} config.target - Target element to attach to
-   * @param {string} [config.position='top'] - Position relative to target
-   * @returns {Promise<void>}
-   */
-  async showNudge(tutorialKey, config) {
-    // TESTING: Always show tutorial (hasSeen check disabled)
-    // TODO: Re-enable this check after testing
-    // if (await this.hasSeen(tutorialKey)) {
-    //   return;
-    // }
-
-    const { title, steps, target, position = 'top' } = config;
-
-    if (!target) {
-      console.warn('[Capsula] Tutorial target not found');
+  load() {
+    if (TutorialConfig.alwaysShow) {
+      this.completedFlows.clear();
       return;
     }
 
-    console.log('[Capsula] Showing tutorial for:', tutorialKey, 'target:', target);
+    try {
+      const stored = localStorage.getItem(TutorialConfig.storageKey);
+      if (stored) {
+        const data = JSON.parse(stored);
+        this.completedFlows = new Set(data.completedFlows || []);
+      }
+    } catch (e) {
+      console.warn('[Capsula Tutorial] Failed to load state:', e);
+    }
+  }
 
-    // Create nudge element with fixed positioning
-    const nudge = document.createElement('div');
-    nudge.id = `capsula-tutorial-${tutorialKey}`;
-    nudge.style.cssText = 'position: fixed; z-index: 2147483648;';
+  save() {
+    if (TutorialConfig.alwaysShow) {
+      return;
+    }
 
-    const shadow = nudge.attachShadow({ mode: 'open' });
-    const colors = ThemeUtils.getColors();
+    try {
+      const data = {
+        completedFlows: Array.from(this.completedFlows),
+        lastUpdated: Date.now()
+      };
+      localStorage.setItem(TutorialConfig.storageKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn('[Capsula Tutorial] Failed to save state:', e);
+    }
+  }
 
-    shadow.innerHTML = `
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        .tutorial-nudge {
-          background: ${colors.bg};
-          color: ${colors.text};
-          border: 2px solid #3b82f6;
-          border-radius: 8px;
-          padding: 16px;
-          max-width: 320px;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .tutorial-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-        .tutorial-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #3b82f6;
-        }
-        .tutorial-close {
-          background: none;
-          border: none;
-          color: ${colors.text};
-          cursor: pointer;
-          font-size: 20px;
-          line-height: 1;
-          opacity: 0.6;
-          padding: 0;
-          width: 24px;
-          height: 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .tutorial-close:hover {
-          opacity: 1;
-        }
-        .tutorial-steps {
-          margin-bottom: 12px;
-        }
-        .tutorial-step {
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          margin-bottom: 8px;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-        .tutorial-step:last-child {
-          margin-bottom: 0;
-        }
-        .step-number {
-          background: #3b82f6;
-          color: white;
-          border-radius: 50%;
-          width: 20px;
-          height: 20px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-          font-weight: 600;
-          flex-shrink: 0;
-        }
-        .step-text {
-          flex: 1;
-          color: ${colors.text};
-          opacity: 0.9;
-        }
-        .tutorial-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-        }
-        .tutorial-btn {
-          padding: 6px 12px;
-          border-radius: 4px;
-          border: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          transition: opacity 0.2s;
-        }
-        .tutorial-btn:hover {
-          opacity: 0.8;
-        }
-        .btn-secondary {
-          background: ${colors.hover};
-          color: ${colors.text};
-        }
-        .btn-primary {
-          background: #3b82f6;
-          color: white;
-        }
-        .tutorial-arrow {
-          position: absolute;
-          width: 0;
-          height: 0;
-          border-style: solid;
-        }
-        .arrow-bottom {
-          bottom: -10px;
-          left: 50%;
-          transform: translateX(-50%);
-          border-width: 10px 10px 0 10px;
-          border-color: #3b82f6 transparent transparent transparent;
-        }
-        .arrow-top {
-          top: -10px;
-          left: 50%;
-          transform: translateX(-50%);
-          border-width: 0 10px 10px 10px;
-          border-color: transparent transparent #3b82f6 transparent;
-        }
-      </style>
-      <div class="tutorial-nudge">
-        <div class="tutorial-arrow arrow-${position === 'top' ? 'bottom' : 'top'}"></div>
-        <div class="tutorial-header">
-          <div class="tutorial-title">${title}</div>
-          <button class="tutorial-close" aria-label="Close tutorial">&times;</button>
-        </div>
-        <div class="tutorial-steps">
-          ${steps.map((step, i) => `
-            <div class="tutorial-step">
-              <div class="step-number">${i + 1}</div>
-              <div class="step-text">${step}</div>
-            </div>
-          `).join('')}
-        </div>
-        <div class="tutorial-footer">
-          <button class="tutorial-btn btn-secondary" data-action="dismiss">Don't show again</button>
-          <button class="tutorial-btn btn-primary" data-action="got-it">Got it!</button>
-        </div>
-      </div>
+  shouldShowFlow(flowId) {
+    if (TutorialConfig.alwaysShow) {
+      return true;
+    }
+    return !this.completedFlows.has(flowId);
+  }
+
+  markFlowComplete(flowId) {
+    this.completedFlows.add(flowId);
+    this.save();
+  }
+
+  resetAll() {
+    this.completedFlows.clear();
+    this.save();
+  }
+}
+
+class TutorialOverlay {
+  constructor(shadowRoot) {
+    this.shadowRoot = shadowRoot;
+    this.overlay = null;
+    this.spotlight = null;
+    this.tooltip = null;
+    this.currentTarget = null;
+  }
+
+  create() {
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'tutorial-overlay';
+    this.overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: ${TutorialConfig.overlayZIndex};
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity ${TutorialConfig.fadeInDuration}ms ease;
     `;
 
-    console.log('[Capsula] Shadow HTML set, shadow:', shadow);
+    this.spotlight = document.createElement('div');
+    this.spotlight.className = 'tutorial-spotlight';
+    this.spotlight.style.cssText = `
+      position: absolute;
+      pointer-events: auto;
+      border-radius: 8px;
+      box-shadow: ${TutorialConfig.spotlightShadow};
+      border: ${TutorialConfig.spotlightBorder};
+      transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    `;
 
-    // Position nudge relative to target (using fixed positioning)
-    const positionNudge = () => {
-      const targetRect = target.getBoundingClientRect();
-      const nudgeContent = shadow.querySelector('.tutorial-nudge');
+    this.tooltip = document.createElement('div');
+    this.tooltip.className = 'tutorial-tooltip';
+    this.tooltip.style.cssText = `
+      position: absolute;
+      pointer-events: auto;
+      max-width: ${TutorialConfig.tooltipMaxWidth}px;
+      background: white;
+      color: #111827;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: system-ui, -apple-system, sans-serif;
+    `;
 
-      if (!nudgeContent) {
-        console.warn('[Capsula] nudgeContent not found in shadow');
-        return;
-      }
+    this.overlay.appendChild(this.spotlight);
+    this.overlay.appendChild(this.tooltip);
 
-      const nudgeRect = nudgeContent.getBoundingClientRect();
+    return this.overlay;
+  }
 
-      // Use fixed positioning (no scrollY/scrollX needed)
-      if (position === 'top') {
-        nudge.style.top = `${targetRect.bottom + 16}px`;
-        nudge.style.left = `${targetRect.left + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
-      } else {
-        nudge.style.top = `${targetRect.top - nudgeRect.height - 16}px`;
-        nudge.style.left = `${targetRect.left + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
-      }
+  show(step, targetElement) {
+    if (!this.overlay) return;
 
-      console.log('[Capsula] Tutorial positioned at:', nudge.style.top, nudge.style.left);
-    };
+    this.currentTarget = targetElement;
 
-    // Event handlers
-    const closeNudge = async (markAsSeen = true) => {
-      if (markAsSeen) {
-        await this.markSeen(tutorialKey);
-      }
-      nudge.remove();
-    };
+    if (step.position === 'center') {
+      this.positionCenter(step);
+    } else {
+      this.positionSpotlight(targetElement);
+    }
 
-    shadow.querySelector('[data-action="got-it"]').addEventListener('click', () => closeNudge(true));
-    shadow.querySelector('[data-action="dismiss"]').addEventListener('click', () => closeNudge(true));
-    shadow.querySelector('.tutorial-close').addEventListener('click', () => closeNudge(false));
+    this.updateTooltip(step);
+    this.positionTooltip(step, targetElement);
 
-    // Append to body and position
-    document.body.appendChild(nudge);
-    console.log('[Capsula] Tutorial nudge appended to body, id:', nudge.id);
-
-    // Position after a short delay to ensure rendering
-    setTimeout(positionNudge, 10);
-
-    // Reposition on window resize
-    const resizeHandler = () => positionNudge();
-    window.addEventListener('resize', resizeHandler);
-
-    // Cleanup on remove
-    nudge.addEventListener('remove', () => {
-      window.removeEventListener('resize', resizeHandler);
+    requestAnimationFrame(() => {
+      this.overlay.style.opacity = '1';
     });
   }
-};
+
+  positionCenter(step) {
+    this.spotlight.style.display = 'none';
+  }
+
+  positionSpotlight(targetElement) {
+    if (!targetElement) return;
+
+    this.spotlight.style.display = 'block';
+    const rect = targetElement.getBoundingClientRect();
+
+    this.spotlight.style.top = `${rect.top}px`;
+    this.spotlight.style.left = `${rect.left}px`;
+    this.spotlight.style.width = `${rect.width}px`;
+    this.spotlight.style.height = `${rect.height}px`;
+  }
+
+  updateTooltip(step) {
+    const buttonsHtml = this.getButtonsHtml(step.buttons);
+
+    this.tooltip.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">
+          ${step.title}
+        </div>
+        <div style="font-size: 14px; line-height: 1.5; color: #6b7280;">
+          ${step.description}
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        ${buttonsHtml}
+      </div>
+    `;
+  }
+
+  getButtonsHtml(buttons) {
+    const buttonConfigs = {
+      'skip': { label: 'Skip Tour', style: 'secondary', action: 'skip' },
+      'next': { label: 'Next', style: 'primary', action: 'next' },
+      'done': { label: 'Get Started', style: 'primary', action: 'done' },
+      'got-it': { label: 'Got it!', style: 'primary', action: 'done' }
+    };
+
+    return buttons.map(btnKey => {
+      const config = buttonConfigs[btnKey];
+      const isPrimary = config.style === 'primary';
+      const baseStyle = `
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid;
+        transition: all 0.2s;
+      `;
+      const style = isPrimary
+        ? `${baseStyle} background: #3b82f6; color: white; border-color: #3b82f6;`
+        : `${baseStyle} background: transparent; color: #6b7280; border-color: #d1d5db;`;
+
+      return `<button class="tutorial-btn" data-action="${config.action}" style="${style}">${config.label}</button>`;
+    }).join('');
+  }
+
+  positionTooltip(step, targetElement) {
+    if (step.position === 'center') {
+      this.tooltip.style.top = '50%';
+      this.tooltip.style.left = '50%';
+      this.tooltip.style.transform = 'translate(-50%, -50%)';
+      return;
+    }
+
+    if (!targetElement) return;
+
+    const rect = targetElement.getBoundingClientRect();
+    const tooltipRect = this.tooltip.getBoundingClientRect();
+    const offset = TutorialConfig.tooltipOffset;
+
+    this.tooltip.style.transform = 'none';
+
+    switch (step.position) {
+      case 'top':
+        this.tooltip.style.top = `${rect.top - tooltipRect.height - offset}px`;
+        this.tooltip.style.left = `${rect.left + rect.width / 2 - tooltipRect.width / 2}px`;
+        break;
+      case 'bottom':
+        this.tooltip.style.top = `${rect.bottom + offset}px`;
+        this.tooltip.style.left = `${rect.left + rect.width / 2 - tooltipRect.width / 2}px`;
+        break;
+      case 'left':
+        this.tooltip.style.top = `${rect.top + rect.height / 2 - tooltipRect.height / 2}px`;
+        this.tooltip.style.left = `${rect.left - tooltipRect.width - offset}px`;
+        break;
+      case 'right':
+        this.tooltip.style.top = `${rect.top + rect.height / 2 - tooltipRect.height / 2}px`;
+        this.tooltip.style.left = `${rect.right + offset}px`;
+        break;
+    }
+
+    this.constrainToViewport();
+  }
+
+  constrainToViewport() {
+    const rect = this.tooltip.getBoundingClientRect();
+    const padding = 16;
+
+    if (rect.right > window.innerWidth - padding) {
+      this.tooltip.style.left = `${window.innerWidth - rect.width - padding}px`;
+    }
+    if (rect.left < padding) {
+      this.tooltip.style.left = `${padding}px`;
+    }
+    if (rect.bottom > window.innerHeight - padding) {
+      this.tooltip.style.top = `${window.innerHeight - rect.height - padding}px`;
+    }
+    if (rect.top < padding) {
+      this.tooltip.style.top = `${padding}px`;
+    }
+  }
+
+  hide() {
+    if (!this.overlay) return;
+
+    this.overlay.style.opacity = '0';
+    setTimeout(() => {
+      if (this.overlay && this.overlay.parentNode) {
+        this.overlay.parentNode.removeChild(this.overlay);
+      }
+    }, TutorialConfig.fadeInDuration);
+  }
+
+  destroy() {
+    // Immediately remove from DOM to prevent blocking interactions
+    if (this.overlay && this.overlay.parentNode) {
+      this.overlay.parentNode.removeChild(this.overlay);
+    }
+
+    this.overlay = null;
+    this.spotlight = null;
+    this.tooltip = null;
+    this.currentTarget = null;
+  }
+}
+
+class TutorialManager {
+  constructor() {
+    this.state = new TutorialState();
+    this.overlay = null;
+    this.currentFlow = null;
+    this.currentStepIndex = 0;
+    this.shadowRoot = null;
+    this.onComplete = null;
+  }
+
+  init(shadowRoot) {
+    this.shadowRoot = shadowRoot;
+  }
+
+  startFlow(flowId, onComplete = null) {
+    const flowConfig = TutorialConfig.flows[flowId];
+    if (!flowConfig) {
+      console.warn(`[Capsula Tutorial] Flow not found: ${flowId}`);
+      return;
+    }
+
+    if (!this.state.shouldShowFlow(flowId)) {
+      console.log(`[Capsula Tutorial] Flow already completed: ${flowId}`);
+      return;
+    }
+
+    this.currentFlow = flowConfig;
+    this.currentStepIndex = 0;
+    this.onComplete = onComplete;
+    this.state.isActive = true;
+
+    this.showCurrentStep();
+  }
+
+  showCurrentStep() {
+    if (!this.currentFlow || this.currentStepIndex >= this.currentFlow.steps.length) {
+      this.endFlow();
+      return;
+    }
+
+    const step = this.currentFlow.steps[this.currentStepIndex];
+
+    // Clean up previous overlay
+    if (this.overlay) {
+      this.overlay.destroy();
+    }
+
+    // Safety: Remove any lingering overlays before creating new one
+    if (this.shadowRoot) {
+      const lingering = this.shadowRoot.querySelectorAll('.tutorial-overlay');
+      lingering.forEach(el => {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      });
+    }
+
+    this.overlay = new TutorialOverlay(this.shadowRoot);
+    const overlayElement = this.overlay.create();
+
+    overlayElement.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tutorial-btn');
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+      this.handleAction(action);
+    });
+
+    this.shadowRoot.appendChild(overlayElement);
+
+    const targetElement = this.findTargetElement(step.target);
+
+    setTimeout(() => {
+      this.overlay.show(step, targetElement);
+    }, 50);
+  }
+
+  findTargetElement(selector) {
+    if (selector === '.panel') {
+      return this.shadowRoot.querySelector('.panel');
+    }
+    return this.shadowRoot.querySelector(selector);
+  }
+
+  handleAction(action) {
+    switch (action) {
+      case 'next':
+        this.nextStep();
+        break;
+      case 'skip':
+        this.endFlow(true);
+        break;
+      case 'done':
+        this.endFlow();
+        break;
+    }
+  }
+
+  nextStep() {
+    this.currentStepIndex++;
+    this.showCurrentStep();
+  }
+
+  endFlow(skipped = false) {
+    // Mark as complete whether skipped or finished - user has seen it either way
+    if (this.currentFlow) {
+      this.state.markFlowComplete(this.currentFlow.id);
+    }
+
+    if (this.overlay) {
+      this.overlay.destroy();
+      this.overlay = null;
+    }
+
+    // Safety: Clean up any lingering tutorial overlays in shadow DOM
+    if (this.shadowRoot) {
+      const lingering = this.shadowRoot.querySelectorAll('.tutorial-overlay');
+      lingering.forEach(el => {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      });
+    }
+
+    this.currentFlow = null;
+    this.currentStepIndex = 0;
+    this.state.isActive = false;
+
+    if (this.onComplete) {
+      this.onComplete();
+    }
+  }
+
+  isActive() {
+    return this.state.isActive;
+  }
+}
+
+const tutorialManager = new TutorialManager();
 
 /* ===========================
    Settings Management
@@ -1409,14 +1604,20 @@ const SettingsPanel = {
           </div>
 
           <div class="setting-group">
-            <h3>Help & Tutorials</h3>
-            <p class="setting-description">Reset tutorial nudges to see them again on first use.</p>
+            <h3>Tutorial</h3>
+            <p class="setting-description">Need a refresher on Capsula's features?</p>
 
-            <div class="integration-actions">
-              <button class="secondary-btn" data-action="reset-tutorials">Reset All Tutorials</button>
+            <div class="setting-item">
+              <button class="secondary-btn tutorial-restart-btn" data-action="restart-tutorial">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" style="margin-right: 8px;">
+                  <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                </svg>
+                Restart Tutorial
+              </button>
+              <small class="setting-hint">
+                This will show the 10-step walkthrough that introduces Capsula's features.
+              </small>
             </div>
-
-            <div class="tutorial-reset-result" style="display: none; margin-top: 8px; padding: 8px; border-radius: 4px;"></div>
           </div>
         </div>
 
@@ -1471,32 +1672,20 @@ const SettingsPanel = {
       });
     });
 
-    // Reset tutorials button
-    const resetTutorialsBtn = container.querySelector('[data-action="reset-tutorials"]');
-    if (resetTutorialsBtn) {
-      resetTutorialsBtn.addEventListener('click', async () => {
-        if (confirm('Reset all tutorials? You will see tutorial nudges again on first use.')) {
-          const success = await TutorialManager.reset();
-          const resultEl = container.querySelector('.tutorial-reset-result');
+    // Restart tutorial button
+    const tutorialBtn = container.querySelector('[data-action="restart-tutorial"]');
+    if (tutorialBtn) {
+      tutorialBtn.addEventListener('click', () => {
+        // Reset tutorial state so it shows again
+        tutorialManager.state.resetAll();
 
-          if (resultEl) {
-            resultEl.style.display = 'block';
-            resultEl.textContent = success
-              ? '✓ All tutorials have been reset'
-              : '✗ Failed to reset tutorials';
-            resultEl.style.background = success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-            resultEl.style.color = success ? '#10b981' : '#ef4444';
+        // Switch back to main view
+        globalState.setViewMode('main');
 
-            // Hide the message after 3 seconds
-            setTimeout(() => {
-              resultEl.style.display = 'none';
-            }, 3000);
-          }
-
-          if (success) {
-            NotificationManager.showToast('Tutorials reset successfully');
-          }
-        }
+        // Start tutorial after a short delay to let view settle
+        setTimeout(() => {
+          tutorialManager.startFlow('welcome');
+        }, 300);
       });
     }
 
@@ -2069,59 +2258,89 @@ const IntegrationExportModal = {
     console.log('[Capsula] Creating modal for service:', service);
     const modal = this.createModal(service, harvest);
     document.body.appendChild(modal);
-    console.log('[Capsula] Modal appended to body, id:', modal.id);
 
-    // Show context-based tutorial nudge (first time only)
-    console.log('[Capsula] About to call showTutorialNudge...');
-    await this.showTutorialNudge(service, modal);
-    console.log('[Capsula] showTutorialNudge call completed');
+    // Show simple tutorial (always shows for testing)
+    this.showSimpleTutorial(service, modal);
   },
 
   /**
-   * Show tutorial nudge for first-time modal users
-   * @private
+   * Show a simple tutorial tooltip
    */
-  async showTutorialNudge(service, modalHost) {
-    console.log('[Capsula] showTutorialNudge START for service:', service);
-    const tutorialKey = `${service}_modal`;
-    const shadow = modalHost.shadowRoot;
-    console.log('[Capsula] modalHost:', modalHost, 'shadowRoot:', shadow);
+  showSimpleTutorial(service, modalHost) {
+    console.log('[Capsula Tutorial] Starting tutorial for:', service);
 
-    // Wait a bit for modal to render and be visible
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Wait for modal to render
+    setTimeout(() => {
+      const shadow = modalHost.shadowRoot;
+      if (!shadow) {
+        console.error('[Capsula Tutorial] No shadow root found');
+        return;
+      }
 
-    const modalContainer = shadow.querySelector('.modal-container');
-    console.log('[Capsula] modalContainer:', modalContainer);
+      const modalContainer = shadow.querySelector('.modal-container');
+      if (!modalContainer) {
+        console.error('[Capsula Tutorial] No modal-container found');
+        return;
+      }
 
-    if (!modalContainer) {
-      console.error('[Capsula] ERROR: modalContainer not found!');
-      return;
-    }
+      console.log('[Capsula Tutorial] Modal container found, creating tutorial');
 
-    const steps = service === 'github'
-      ? [
-          'Fill in the gist filename and description',
-          'Click "Create Gist" to export your conversation to GitHub'
-        ]
-      : [
-          'Enter a page title for your conversation',
-          'Select a parent page (optional) and click "Create Page"'
-        ];
+      // Create tutorial element
+      const tutorial = document.createElement('div');
+      tutorial.id = 'capsula-simple-tutorial';
+      tutorial.style.cssText = `
+        position: fixed;
+        background: #1e40af;
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 2147483647;
+        max-width: 320px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      `;
 
-    console.log('[Capsula] About to call TutorialManager.showNudge with:', {
-      tutorialKey,
-      target: modalContainer,
-      position: 'top'
-    });
+      const title = service === 'github' ? 'GitHub Export' : 'Notion Export';
+      const steps = service === 'github'
+        ? '1. Fill in filename and description<br>2. Click "Create Gist"'
+        : '1. Enter page title<br>2. Select parent page<br>3. Click "Create Page"';
 
-    await TutorialManager.showNudge(tutorialKey, {
-      title: `Export to ${service === 'github' ? 'GitHub' : 'Notion'}`,
-      steps,
-      target: modalContainer,
-      position: 'top'
-    });
+      tutorial.innerHTML = `
+        <div style="font-weight: 600; margin-bottom: 8px; font-size: 15px;">📚 ${title}</div>
+        <div style="margin-bottom: 12px;">${steps}</div>
+        <button id="tutorial-close" style="
+          background: white;
+          color: #1e40af;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: 500;
+          font-size: 13px;
+        ">Got it!</button>
+      `;
 
-    console.log('[Capsula] showTutorialNudge END');
+      // Position tutorial
+      const rect = modalContainer.getBoundingClientRect();
+      tutorial.style.top = `${rect.bottom + 16}px`;
+      tutorial.style.left = `${rect.left + (rect.width / 2) - 160}px`;
+
+      console.log('[Capsula Tutorial] Positioning at:', tutorial.style.top, tutorial.style.left);
+
+      // Add close handler
+      document.body.appendChild(tutorial);
+      console.log('[Capsula Tutorial] Tutorial appended to body');
+
+      const closeBtn = tutorial.querySelector('#tutorial-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          console.log('[Capsula Tutorial] Close button clicked');
+          tutorial.remove();
+        });
+      }
+    }, 350); // Wait for modal animation
   },
 
   /**
@@ -8323,11 +8542,19 @@ const PanelManager = {
     
     panelHost = ExportPanel.create(harvest);
     document.body.appendChild(panelHost);
-    
+
     setTimeout(() => {
       const shadow = panelHost.shadowRoot;
       const firstFocusable = shadow.querySelector('button, select');
       if (firstFocusable) firstFocusable.focus();
+
+      // Initialize tutorial system
+      tutorialManager.init(shadow);
+
+      // Trigger welcome tutorial after a short delay to let panel settle
+      setTimeout(() => {
+        tutorialManager.startFlow('welcome');
+      }, 500);
     }, 100);
   },
 
@@ -8335,6 +8562,11 @@ const PanelManager = {
     if (panelHost) {
       ChatRenderer.destroy();
       Timeline.cleanupAll();
+
+      // End any active tutorial
+      if (tutorialManager.isActive()) {
+        tutorialManager.endFlow(true);
+      }
 
       panelHost.style.animation = 'fadeOut 0.2s ease';
       setTimeout(() => {
