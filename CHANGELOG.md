@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 Major New Features
 
+#### Interactive Tutorial System
+- **Get-Started Walkthrough**: Non-intrusive tutorial overlays guide new users through key features
+  - Welcome flow introduces timeline, preview, filters, and export options
+  - Timeline selection tutorial explains multi-selection keyboard shortcuts
+  - Message toggles tutorial demonstrates checkbox functionality
+  - Smart spotlight highlighting with semi-transparent overlays
+  - Skip or complete tutorials at any time
+  - Elegant tooltip positioning with viewport constraints
+- **Trigger Points**: Tutorials show automatically at optimal moments
+  - Welcome tutorial triggers on first panel open
+  - Additional flows available for specific features
+  - For testing: tutorials show every time (configurable for production)
+- **Tutorial Management**:
+  - State tracking for completed tutorials (future: don't repeat)
+  - Configurable flows with multiple steps per feature
+  - Clean animations and transitions
+  - Accessible button controls (Skip, Next, Got it!)
+
 #### Enhanced Timeline with Multi-Selection
 - **Multi-Selection Support**: Advanced message selection with keyboard modifiers
   - **Ctrl+Click**: Toggle individual messages on/off in timeline
