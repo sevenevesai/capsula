@@ -1541,9 +1541,17 @@ const IntegrationExportModal = {
       return;
     }
 
+    // Remove any existing modal first (cleanup)
+    const existingModal = document.getElementById('capsula-integration-modal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
     // Create and show modal
+    // Append to document.body instead of parentShadow to avoid being destroyed
+    // when ExportPanel content updates
     const modal = this.createModal(service, harvest);
-    parentShadow.appendChild(modal);
+    document.body.appendChild(modal);
   },
 
   /**
