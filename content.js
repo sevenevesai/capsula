@@ -387,6 +387,8 @@ const TutorialManager = {
       </div>
     `;
 
+    console.log('[Capsula] Shadow HTML set, shadow:', shadow);
+
     // Position nudge relative to target (using fixed positioning)
     const positionNudge = () => {
       const targetRect = target.getBoundingClientRect();
@@ -2064,11 +2066,15 @@ const IntegrationExportModal = {
     // Create and show modal
     // Append to document.body instead of parentShadow to avoid being destroyed
     // when ExportPanel content updates
+    console.log('[Capsula] Creating modal for service:', service);
     const modal = this.createModal(service, harvest);
     document.body.appendChild(modal);
+    console.log('[Capsula] Modal appended to body, id:', modal.id);
 
     // Show context-based tutorial nudge (first time only)
+    console.log('[Capsula] About to call showTutorialNudge...');
     await this.showTutorialNudge(service, modal);
+    console.log('[Capsula] showTutorialNudge call completed');
   },
 
   /**
@@ -2076,14 +2082,21 @@ const IntegrationExportModal = {
    * @private
    */
   async showTutorialNudge(service, modalHost) {
+    console.log('[Capsula] showTutorialNudge START for service:', service);
     const tutorialKey = `${service}_modal`;
     const shadow = modalHost.shadowRoot;
+    console.log('[Capsula] modalHost:', modalHost, 'shadowRoot:', shadow);
 
     // Wait a bit for modal to render and be visible
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const modalContainer = shadow.querySelector('.modal-container');
-    if (!modalContainer) return;
+    console.log('[Capsula] modalContainer:', modalContainer);
+
+    if (!modalContainer) {
+      console.error('[Capsula] ERROR: modalContainer not found!');
+      return;
+    }
 
     const steps = service === 'github'
       ? [
@@ -2095,12 +2108,20 @@ const IntegrationExportModal = {
           'Select a parent page (optional) and click "Create Page"'
         ];
 
+    console.log('[Capsula] About to call TutorialManager.showNudge with:', {
+      tutorialKey,
+      target: modalContainer,
+      position: 'top'
+    });
+
     await TutorialManager.showNudge(tutorialKey, {
       title: `Export to ${service === 'github' ? 'GitHub' : 'Notion'}`,
       steps,
       target: modalContainer,
       position: 'top'
     });
+
+    console.log('[Capsula] showTutorialNudge END');
   },
 
   /**
