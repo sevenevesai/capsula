@@ -225,11 +225,35 @@ class ExportState {
 
   // Multi-selection methods
   toggleSelection(index) {
-    if (this.selection.selectedIndices.has(index)) {
-      this.selection.selectedIndices.delete(index);
+    // Special case: If Set is empty (all messages selected), toggling OFF means
+    // we need to select all EXCEPT the one being toggled off
+    if (this.selection.selectedIndices.size === 0) {
+      // Add all message indices except the one being toggled off
+      if (this.harvest && this.harvest.messages) {
+        this.harvest.messages.forEach(msg => {
+          if (msg.index !== index && !(msg.isThinking || msg.incomplete)) {
+            this.selection.selectedIndices.add(msg.index);
+          }
+        });
+      }
     } else {
-      this.selection.selectedIndices.add(index);
+      // Normal toggle logic
+      if (this.selection.selectedIndices.has(index)) {
+        this.selection.selectedIndices.delete(index);
+      } else {
+        this.selection.selectedIndices.add(index);
+      }
+
+      // Optimization: If we just added the last missing message, clear the Set
+      // to return to "all selected" state (empty Set)
+      if (this.harvest && this.harvest.messages) {
+        const totalMessages = this.harvest.messages.filter(m => !(m.isThinking || m.incomplete)).length;
+        if (this.selection.selectedIndices.size === totalMessages) {
+          this.selection.selectedIndices.clear();
+        }
+      }
     }
+
     this.selection.lastAnchor = index;
     if (this.onSelectionChange) {
       this.onSelectionChange();
