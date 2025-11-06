@@ -667,7 +667,8 @@ class TutorialManager {
   }
 
   endFlow(skipped = false) {
-    if (this.currentFlow && !skipped) {
+    // Mark as complete whether skipped or finished - user has seen it either way
+    if (this.currentFlow) {
       this.state.markFlowComplete(this.currentFlow.id);
     }
 
