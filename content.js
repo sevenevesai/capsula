@@ -193,10 +193,13 @@ class ExportState {
       tables: false,
       lists: false
     };
-    this.rangeSelection = {
-      start: null,
-      end: null,
-      isSelecting: false
+    // New multi-selection model
+    this.selection = {
+      selectedIndices: new Set(), // Set of selected message indices
+      isSelecting: false,
+      lastAnchor: null, // Last clicked index for shift+click range
+      isDragging: false,
+      dragMode: null // 'add' or 'remove' for ctrl+drag
     };
     this.exportFormat = 'markdown';
     if (typeof this.scrollObserver === 'function') {
@@ -208,7 +211,7 @@ class ExportState {
     }
     this.scrollObserver = null;
     this.viewMode = 'main'; // 'main', 'settings', or 'dashboard'
-    this.onRangeChange = null;
+    this.onSelectionChange = null;
     this.onViewModeChange = null;
   }
 
@@ -220,21 +223,79 @@ class ExportState {
     return Object.values(this.filters).some(v => v);
   }
 
-  setRange(start, end) {
-    this.rangeSelection.start = start;
-    this.rangeSelection.end = end;
-    if (this.onRangeChange) {
-      this.onRangeChange();
+  // Multi-selection methods
+  toggleSelection(index) {
+    if (this.selection.selectedIndices.has(index)) {
+      this.selection.selectedIndices.delete(index);
+    } else {
+      this.selection.selectedIndices.add(index);
+    }
+    this.selection.lastAnchor = index;
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
     }
   }
 
-  clearRange() {
-    this.rangeSelection.start = null;
-    this.rangeSelection.end = null;
-    this.rangeSelection.isSelecting = false;
-    if (this.onRangeChange) {
-      this.onRangeChange();
+  addToSelection(index) {
+    this.selection.selectedIndices.add(index);
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
     }
+  }
+
+  removeFromSelection(index) {
+    this.selection.selectedIndices.delete(index);
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
+    }
+  }
+
+  setSelection(indices) {
+    this.selection.selectedIndices = new Set(indices);
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
+    }
+  }
+
+  extendSelection(fromIndex, toIndex) {
+    const start = Math.min(fromIndex, toIndex);
+    const end = Math.max(fromIndex, toIndex);
+
+    // Get all message indices in range
+    if (this.harvest && this.harvest.messages) {
+      const indicesInRange = this.harvest.messages
+        .filter(m => m.index >= start && m.index <= end && !(m.isThinking || m.incomplete))
+        .map(m => m.index);
+
+      indicesInRange.forEach(idx => this.selection.selectedIndices.add(idx));
+    }
+
+    this.selection.lastAnchor = toIndex;
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
+    }
+  }
+
+  clearSelection() {
+    this.selection.selectedIndices.clear();
+    this.selection.isSelecting = false;
+    this.selection.lastAnchor = null;
+    this.selection.dragMode = null;
+    if (this.onSelectionChange) {
+      this.onSelectionChange();
+    }
+  }
+
+  hasSelection() {
+    return this.selection.selectedIndices.size > 0;
+  }
+
+  isSelected(index) {
+    // If no selection, everything is selected
+    if (this.selection.selectedIndices.size === 0) {
+      return true;
+    }
+    return this.selection.selectedIndices.has(index);
   }
 
   setExportFormat(format) {
@@ -583,7 +644,7 @@ const Timeline = {
     container.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      globalState.clearRange();
+      globalState.clearSelection();
       this.updateSelection(container);
       return false;
     });
@@ -594,21 +655,43 @@ const Timeline = {
 
       if (segment) {
         const clickedIndex = parseInt(segment.dataset.index);
+        const ctrlKey = e.ctrlKey || e.metaKey; // Support both Ctrl and Cmd (Mac)
+        const shiftKey = e.shiftKey;
 
-        if (globalState.rangeSelection.start !== null &&
-            globalState.rangeSelection.end !== null) {
-          const start = Math.min(globalState.rangeSelection.start, globalState.rangeSelection.end);
-          const end = Math.max(globalState.rangeSelection.start, globalState.rangeSelection.end);
+        if (ctrlKey && !shiftKey) {
+          // Ctrl+click: Toggle selection
+          globalState.toggleSelection(clickedIndex);
 
-          if (clickedIndex < start || clickedIndex > end) {
-            globalState.clearRange();
+          // Set drag mode based on whether we added or removed
+          globalState.selection.dragMode = globalState.isSelected(clickedIndex) ? 'add' : 'remove';
+          globalState.selection.isDragging = true;
+          isDragging = true;
+          startIndex = clickedIndex;
+
+        } else if (shiftKey && !ctrlKey) {
+          // Shift+click: Extend selection from last anchor
+          const anchor = globalState.selection.lastAnchor ?? clickedIndex;
+          globalState.extendSelection(anchor, clickedIndex);
+
+        } else if (ctrlKey && shiftKey) {
+          // Ctrl+Shift+click: Add range to selection
+          const anchor = globalState.selection.lastAnchor ?? clickedIndex;
+          globalState.extendSelection(anchor, clickedIndex);
+
+        } else {
+          // Regular click: Start new drag selection (clear existing first)
+          if (!globalState.isSelected(clickedIndex) || globalState.selection.selectedIndices.size > 1) {
+            globalState.clearSelection();
           }
+
+          isDragging = true;
+          startIndex = clickedIndex;
+          globalState.selection.isSelecting = true;
+          globalState.selection.lastAnchor = clickedIndex;
+          globalState.addToSelection(clickedIndex);
+          globalState.selection.dragMode = 'add';
         }
 
-        isDragging = true;
-        startIndex = clickedIndex;
-        globalState.rangeSelection.isSelecting = true;
-        globalState.setRange(startIndex, startIndex);
         this.updateSelection(container);
       }
     });
@@ -628,11 +711,25 @@ const Timeline = {
           }
         }
 
-        if (endIndex !== null) {
-          globalState.setRange(
-            Math.min(startIndex, endIndex),
-            Math.max(startIndex, endIndex)
-          );
+        if (endIndex !== null && startIndex !== null) {
+          const start = Math.min(startIndex, endIndex);
+          const end = Math.max(startIndex, endIndex);
+
+          // Get all indices in the drag range
+          const messages = globalState.harvest?.messages || [];
+          const indicesInRange = messages
+            .filter(m => m.index >= start && m.index <= end && !(m.isThinking || m.incomplete))
+            .map(m => m.index);
+
+          // Apply based on drag mode
+          if (globalState.selection.dragMode === 'remove') {
+            // Remove all indices in range
+            indicesInRange.forEach(idx => globalState.removeFromSelection(idx));
+          } else {
+            // Add all indices in range (default mode)
+            indicesInRange.forEach(idx => globalState.addToSelection(idx));
+          }
+
           this.updateSelection(container);
         }
       } else if (isResizing) {
@@ -645,7 +742,8 @@ const Timeline = {
       isDragging = false;
       isResizing = false;
       resizeType = null;
-      globalState.rangeSelection.isSelecting = false;
+      globalState.selection.isSelecting = false;
+      globalState.selection.isDragging = false;
     };
 
     // Add document-level listeners and track them
@@ -673,50 +771,61 @@ const Timeline = {
     const selection = container.querySelector('.timeline-selection');
     const segments = track.querySelectorAll('.timeline-segment');
     const handles = container.querySelectorAll('.resize-handle');
-    
-    if (globalState.rangeSelection.start !== null && 
-        globalState.rangeSelection.end !== null) {
-      
-      let startSegment = null;
-      let endSegment = null;
-      
-      segments.forEach(seg => {
-        const idx = parseInt(seg.getAttribute('data-index'), 10);
-        if (idx === globalState.rangeSelection.start) startSegment = seg;
-        if (idx === globalState.rangeSelection.end) endSegment = seg;
-      });
-      
-      if (startSegment && endSegment) {
-        const startRect = startSegment.getBoundingClientRect();
-        const endRect = endSegment.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        
-        const top = startRect.top - containerRect.top;
-        const height = endRect.bottom - startRect.top;
-        
-        selection.style.display = 'block';
-        selection.style.top = `${top}px`;
-        selection.style.height = `${height}px`;
-        
-        handles[0].style.display = 'block';
-        handles[0].style.top = `${top - 5}px`;
-        handles[1].style.display = 'block';
-        handles[1].style.top = `${top + height - 5}px`;
+
+    const hasSelection = globalState.hasSelection();
+
+    if (hasSelection) {
+      // Find contiguous ranges for visual overlay
+      const selectedIndices = Array.from(globalState.selection.selectedIndices).sort((a, b) => a - b);
+
+      if (selectedIndices.length > 0) {
+        // Get first and last selected segments for visual overlay
+        const firstIndex = selectedIndices[0];
+        const lastIndex = selectedIndices[selectedIndices.length - 1];
+
+        let firstSegment = null;
+        let lastSegment = null;
+
+        segments.forEach(seg => {
+          const idx = parseInt(seg.getAttribute('data-index'), 10);
+          if (idx === firstIndex) firstSegment = seg;
+          if (idx === lastIndex) lastSegment = seg;
+        });
+
+        if (firstSegment && lastSegment) {
+          const firstRect = firstSegment.getBoundingClientRect();
+          const lastRect = lastSegment.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+
+          const top = firstRect.top - containerRect.top;
+          const height = lastRect.bottom - firstRect.top;
+
+          selection.style.display = 'block';
+          selection.style.top = `${top}px`;
+          selection.style.height = `${height}px`;
+
+          handles[0].style.display = 'block';
+          handles[0].style.top = `${top - 5}px`;
+          handles[1].style.display = 'block';
+          handles[1].style.top = `${top + height - 5}px`;
+        }
       }
-      
+
+      // Update segment opacity based on selection
       segments.forEach((seg) => {
         const segIndex = parseInt(seg.getAttribute('data-index'), 10);
-        const isInRange = this.isMessageInRange(segIndex);
-        seg.style.opacity = isInRange ? '1' : '0.3';
+        const isSelected = this.isMessageInRange(segIndex);
+        seg.style.opacity = isSelected ? '1' : '0.3';
       });
     } else {
+      // No selection - show all as selected
       selection.style.display = 'none';
       handles.forEach(h => h.style.display = 'none');
       segments.forEach(seg => {
         seg.style.opacity = '1';
       });
     }
-    
+
     const previewPanel = container.closest('.panel')?.querySelector('.chat-preview');
     if (previewPanel) {
       previewPanel.dispatchEvent(new Event('scroll'));
@@ -727,7 +836,7 @@ const Timeline = {
     const track = container.querySelector('.timeline-track');
     const segments = track.querySelectorAll('.timeline-segment');
     const rects = Array.from(segments).map(s => s.getBoundingClientRect());
-    
+
     let newIndex = null;
     for (let i = 0; i < rects.length; i++) {
       if (e.clientY >= rects[i].top && e.clientY <= rects[i].bottom) {
@@ -735,25 +844,30 @@ const Timeline = {
         break;
       }
     }
-    
-    if (newIndex !== null) {
+
+    if (newIndex !== null && globalState.hasSelection()) {
+      const selectedIndices = Array.from(globalState.selection.selectedIndices).sort((a, b) => a - b);
+      const firstIndex = selectedIndices[0];
+      const lastIndex = selectedIndices[selectedIndices.length - 1];
+
       if (type === 'top') {
-        globalState.rangeSelection.start = Math.min(newIndex, globalState.rangeSelection.end);
+        // Resize from top: extend/contract selection from the bottom up
+        const anchor = lastIndex;
+        globalState.clearSelection();
+        globalState.extendSelection(anchor, newIndex);
       } else {
-        globalState.rangeSelection.end = Math.max(newIndex, globalState.rangeSelection.start);
+        // Resize from bottom: extend/contract selection from the top down
+        const anchor = firstIndex;
+        globalState.clearSelection();
+        globalState.extendSelection(anchor, newIndex);
       }
-      globalState.setRange(globalState.rangeSelection.start, globalState.rangeSelection.end);
+
       this.updateSelection(container);
     }
   },
 
   isMessageInRange(idx) {
-    if (globalState.rangeSelection.start === null || 
-        globalState.rangeSelection.end === null) {
-      return true;
-    }
-    return idx >= globalState.rangeSelection.start &&
-           idx <= globalState.rangeSelection.end;
+    return globalState.isSelected(idx);
   },
 
   cleanup(container) {
@@ -2740,7 +2854,79 @@ const ExportPanel = {
       .message.assistant {
         justify-content: flex-start;
       }
-      
+
+      /* Excluded message styles */
+      .message.excluded {
+        opacity: 0.5;
+        position: relative;
+        transition: opacity 0.2s ease;
+      }
+
+      .message.excluded:hover {
+        opacity: 0.7;
+      }
+
+      .message.excluded::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 10px,
+          rgba(128, 128, 128, 0.05) 10px,
+          rgba(128, 128, 128, 0.05) 20px
+        );
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .message.excluded .bubble {
+        filter: grayscale(0.4);
+      }
+
+      /* Collapsed message styles */
+      .message.collapsed .thinking-container {
+        max-height: 60px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .message.collapsed .bubble {
+        max-height: 60px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .message.collapsed::after {
+        content: '▶ Click to expand';
+        display: block;
+        font-size: 11px;
+        color: ${colors.accentPrimary};
+        margin-top: 4px;
+        margin-left: auto;
+        text-align: right;
+        font-weight: 500;
+      }
+
+      .message.collapsed:not(.excluded)::after {
+        content: '';
+      }
+
+      .message.excluded:not(.collapsed)::after {
+        content: '▼ Click to collapse';
+        display: block;
+        font-size: 11px;
+        color: ${colors.accentPrimary};
+        margin-top: 4px;
+        margin-left: auto;
+        text-align: right;
+        font-weight: 500;
+      }
+
       .thinking-container {
         max-width: 70%;
       }
@@ -2980,12 +3166,11 @@ const ExportPanel = {
       });
     }
 
-    globalState.onRangeChange = () => {
+    globalState.onSelectionChange = () => {
       ChatRenderer.refresh();
-      const hasRange = globalState.rangeSelection.start !== null &&
-                       globalState.rangeSelection.end !== null;
+      const hasSelection = globalState.hasSelection();
       if (clearRangeBtn) {
-        clearRangeBtn.style.display = hasRange ? 'block' : 'none';
+        clearRangeBtn.style.display = hasSelection ? 'block' : 'none';
       }
       Timeline.updateSelection(shadow.querySelector('.timeline-panel'));
     };
@@ -3015,7 +3200,7 @@ const ExportPanel = {
     });
 
     clearRangeBtn?.addEventListener('click', () => {
-      globalState.clearRange();
+      globalState.clearSelection();
       Timeline.updateSelection(shadow.querySelector('.timeline-panel'));
     });
 
@@ -3317,20 +3502,63 @@ const SettingsStyles = {
    =========================== */
 const MessageFilter = {
   apply(messages) {
+    // Return all messages with metadata about whether they should be included
+    return messages.map(msg => {
+      let isIncluded = true;
+      let filteredBlocks = msg.blocks;
+
+      // Check selection filter
+      if (!globalState.isSelected(msg.index)) {
+        isIncluded = false;
+      }
+
+      // Check assistant-only filter
+      if (isIncluded && globalState.filters.assistantOnly && msg.role !== 'assistant') {
+        isIncluded = false;
+      }
+
+      // Check content filters
+      const hasContentFilters = globalState.filters.code ||
+                               globalState.filters.tables ||
+                               globalState.filters.lists;
+
+      if (isIncluded && hasContentFilters) {
+        filteredBlocks = msg.blocks.filter(block => {
+          if (globalState.filters.code && block.kind === 'code') return true;
+          if (globalState.filters.tables && block.kind === 'table') return true;
+          if (globalState.filters.lists && block.kind === 'list') return true;
+          return false;
+        });
+
+        if (filteredBlocks.length === 0) {
+          isIncluded = false;
+        }
+      }
+
+      return {
+        ...msg,
+        blocks: filteredBlocks,
+        isIncludedInExport: isIncluded,
+        isCollapsed: !isIncluded // Auto-collapse excluded messages
+      };
+    });
+  },
+
+  // Get only messages that should be included in exports
+  getExportMessages(messages) {
     let filtered = [...messages];
 
-    if (globalState.rangeSelection.start !== null &&
-        globalState.rangeSelection.end !== null) {
-      filtered = filtered.filter(msg =>
-        msg.index >= globalState.rangeSelection.start &&
-        msg.index <= globalState.rangeSelection.end
-      );
+    // Selection filter
+    if (globalState.hasSelection()) {
+      filtered = filtered.filter(msg => globalState.isSelected(msg.index));
     }
 
+    // Assistant-only filter
     if (globalState.filters.assistantOnly) {
       filtered = filtered.filter(msg => msg.role === 'assistant');
     }
 
+    // Content filters
     const hasContentFilters = globalState.filters.code ||
                              globalState.filters.tables ||
                              globalState.filters.lists;
@@ -3393,7 +3621,7 @@ const ChatRenderer = (() => {
       empty.style.textAlign = 'center';
       empty.style.color = 'var(--text-secondary)';
       empty.style.padding = '40px';
-      empty.textContent = 'No messages match the current filters';
+      empty.textContent = 'No messages in conversation';
       container.replaceChildren(empty);
       return;
     }
@@ -3410,8 +3638,27 @@ const ChatRenderer = (() => {
       }
 
       const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${msg.role}`;
+      const classes = ['message', msg.role];
+
+      // Add classes for excluded and collapsed messages
+      if (!msg.isIncludedInExport) {
+        classes.push('excluded');
+      }
+      if (msg.isCollapsed) {
+        classes.push('collapsed');
+      }
+
+      messageDiv.className = classes.join(' ');
       messageDiv.dataset.messageIndex = msg.index;
+
+      // Add click handler for collapsible messages
+      if (!msg.isIncludedInExport) {
+        messageDiv.style.cursor = 'pointer';
+        messageDiv.title = 'Click to expand/collapse (excluded from export)';
+        messageDiv.addEventListener('click', () => {
+          messageDiv.classList.toggle('collapsed');
+        });
+      }
 
       const thinkingContainer = document.createElement('div');
       thinkingContainer.className = 'thinking-container';
@@ -3427,8 +3674,6 @@ const ChatRenderer = (() => {
           labelsWrapper.appendChild(labelEl);
         });
 
-        // Note: expandable content indicator removed - it was non-functional
-
         thinkingContainer.appendChild(labelsWrapper);
       }
 
@@ -3439,8 +3684,19 @@ const ChatRenderer = (() => {
         const roleLabel = document.createElement('div');
         roleLabel.className = 'message-role';
         roleLabel.textContent = msg.role === 'user' ? 'You' : 'ChatGPT';
-        bubble.appendChild(roleLabel);
 
+        // Add exclusion indicator
+        if (!msg.isIncludedInExport) {
+          const excludeIcon = document.createElement('span');
+          excludeIcon.className = 'exclude-indicator';
+          excludeIcon.textContent = '(Not in export)';
+          excludeIcon.style.marginLeft = '8px';
+          excludeIcon.style.fontSize = '0.85em';
+          excludeIcon.style.opacity = '0.7';
+          roleLabel.appendChild(excludeIcon);
+        }
+
+        bubble.appendChild(roleLabel);
         bubble.insertAdjacentHTML('beforeend', bubbleContent);
         thinkingContainer.appendChild(bubble);
       }
@@ -3454,7 +3710,7 @@ const ChatRenderer = (() => {
       empty.style.textAlign = 'center';
       empty.style.color = 'var(--text-secondary)';
       empty.style.padding = '40px';
-      empty.textContent = 'No messages match the current filters';
+      empty.textContent = 'No messages in conversation';
       container.replaceChildren(empty);
       return;
     }
@@ -4076,10 +4332,20 @@ const IntegrationMarkdownFormatter = {
   },
 
   /**
-   * Filter messages based on filters
+   * Filter messages based on filters and selection
    * @private
    */
   _filterMessages(messages, filters) {
+    // Use MessageFilter.getExportMessages to respect selection
+    return MessageFilter.getExportMessages(messages);
+  },
+
+  /**
+   * Old filter logic preserved for reference (now handled by MessageFilter.getExportMessages)
+   * @private
+   * @deprecated
+   */
+  _filterMessagesLegacy(messages, filters) {
     let filtered = [...messages];
 
     if (filters.assistantOnly) {
@@ -4999,7 +5265,8 @@ const ExportManager = {
   },
 
   generateContent(harvest, format) {
-    const filteredMessages = MessageFilter.apply(harvest.messages);
+    // Use getExportMessages to get only selected messages for export
+    const filteredMessages = MessageFilter.getExportMessages(harvest.messages);
 
     switch (format) {
       case 'markdown':
