@@ -3057,12 +3057,50 @@ const ExportPanel = {
       }
       
       .message-role {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         font-size: 11px;
         color: ${colors.textSecondary};
         margin-bottom: 4px;
         font-weight: 500;
       }
-      
+
+      .message-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        margin: 0;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: ${colors.textSecondary};
+        transition: all 0.2s ease;
+        opacity: 0.7;
+        flex-shrink: 0;
+      }
+
+      .message-toggle-btn:hover {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+
+      .message-toggle-btn.selected {
+        color: ${colors.accentSecondary};
+        opacity: 1;
+      }
+
+      .message-toggle-btn svg {
+        display: block;
+      }
+
+      .message-toggle-btn:focus-visible {
+        outline: 2px solid ${colors.accentPrimary};
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
       .footer {
         display: flex;
         align-items: center;
@@ -3724,7 +3762,39 @@ const ChatRenderer = (() => {
 
         const roleLabel = document.createElement('div');
         roleLabel.className = 'message-role';
-        roleLabel.textContent = msg.role === 'user' ? 'You' : 'ChatGPT';
+
+        // Create role label container with toggle
+        const roleLabelContent = document.createElement('span');
+        roleLabelContent.textContent = msg.role === 'user' ? 'You' : 'ChatGPT';
+        roleLabel.appendChild(roleLabelContent);
+
+        // Add toggle checkbox
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'message-toggle-btn';
+        toggleBtn.type = 'button';
+        toggleBtn.setAttribute('aria-label', 'Toggle message in export');
+        toggleBtn.title = globalState.isSelected(msg.index)
+          ? 'Click to exclude from export'
+          : 'Click to include in export';
+
+        // Set visual state
+        if (globalState.isSelected(msg.index)) {
+          toggleBtn.classList.add('selected');
+        }
+
+        // Toggle icon (checkbox style)
+        toggleBtn.innerHTML = globalState.isSelected(msg.index)
+          ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect width="14" height="14" rx="2" fill="currentColor"/><path d="M4 7l2 2 4-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          : '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>';
+
+        // Click handler to toggle selection
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // Don't trigger message expand/collapse
+          globalState.toggleSelection(msg.index);
+          // Refresh will be triggered by onSelectionChange callback
+        });
+
+        roleLabel.appendChild(toggleBtn);
 
         // Add exclusion indicator
         if (!msg.isIncludedInExport) {
