@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### 🎉 Major New Features
+
+#### Enhanced Timeline with Multi-Selection
+- **Multi-Selection Support**: Advanced message selection with keyboard modifiers
+  - **Ctrl+Click**: Toggle individual messages on/off in timeline
+  - **Shift+Click**: Extend selection from last anchor point
+  - **Ctrl+Shift+Click**: Add range to existing selection
+  - **Ctrl+Drag**: Add or remove multiple messages while dragging
+  - **Right-Click**: Clear all selections instantly
+  - Non-contiguous selections for complex filtering needs
+
+- **Interactive Message Toggles**: Direct toggle controls in preview area
+  - Checkbox button on each message role label
+  - Click to include/exclude messages from export
+  - Visual feedback: checked (green) = included, unchecked = excluded
+  - Bidirectional sync with timeline selection
+  - No keyboard shortcuts required for basic usage
+  - Accessible with keyboard navigation and screen readers
+
+- **Improved Message Visibility**: Excluded messages shown instead of hidden
+  - Greyed-out display with 50% opacity for excluded messages
+  - Diagonal stripe pattern overlay for clear visual distinction
+  - Grayscale filter (40%) applied to excluded message bubbles
+  - Auto-collapse excluded messages to 60px height
+  - Click to expand/collapse for review
+  - "(Not in export)" labels for clarity
+  - Expand/collapse hints with intuitive icons
+
+### ✨ Enhancements
+
+- **Better UX for Message Selection**:
+  - All messages remain visible regardless of selection state
+  - Clear visual indicators for what will be included in export
+  - Multiple ways to select: timeline, preview toggles, or keyboard shortcuts
+  - Smooth animations and transitions for all state changes
+  - Preserved message alignment (user messages stay right-aligned)
+
+- **Selection Model Improvements**:
+  - Replaced simple range (start/end) with flexible Set-based selection
+  - Empty Set represents "all selected" for efficiency
+  - Smart toggle logic: first exclusion selects all except that message
+  - Automatic cleanup when all messages re-selected (returns to empty Set)
+  - Resize handles work with new multi-selection model
+
+- **Export Integration**:
+  - All export formats respect multi-selection (Markdown, HTML, JSON, Dashboard)
+  - GitHub Gists and Issues integration updated
+  - Notion pages integration updated
+  - Two-tier filtering: preview shows all, export uses selection
+
+### 🔧 Fixed
+
+- Message alignment preserved for excluded/collapsed messages
+- User messages stay right-aligned even when greyed out
+- Toggle behavior correct when starting from "all selected" state
+- Expand/collapse hints positioned correctly for each message role
+- Click handlers properly isolated (toggle vs expand/collapse)
+
+### 🎨 UI/UX
+
+- New checkbox toggles in message role labels
+- Hover effects on timeline segments and toggle buttons
+- Visual state feedback for selected/unselected messages
+- Keyboard focus indicators for accessibility
+- Smooth scale animations on hover (110%)
+- Color-coded checkmarks (green for included)
+
+### 📚 Technical
+
+- Set-based selection model for O(1) lookups
+- `MessageFilter.apply()` for preview (shows all with metadata)
+- `MessageFilter.getExportMessages()` for exports (only selected)
+- `onSelectionChange` callback for bidirectional sync
+- Event propagation control for nested interactions
+- RequestAnimationFrame for smooth rendering
+
+---
+
 ## [1.2.0] - 2025-01-XX
 
 ### 🎉 Major New Features
