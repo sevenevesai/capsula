@@ -508,15 +508,22 @@ class TutorialOverlay {
     if (!this.overlay) return;
 
     this.overlay.style.opacity = '0';
+
+    // Store reference before nulling
+    const overlayElement = this.overlay;
     setTimeout(() => {
-      if (this.overlay && this.overlay.parentNode) {
-        this.overlay.parentNode.removeChild(this.overlay);
+      if (overlayElement && overlayElement.parentNode) {
+        overlayElement.parentNode.removeChild(overlayElement);
       }
     }, TutorialConfig.fadeInDuration);
   }
 
   destroy() {
-    this.hide();
+    // Immediately remove from DOM to prevent blocking interactions
+    if (this.overlay && this.overlay.parentNode) {
+      this.overlay.parentNode.removeChild(this.overlay);
+    }
+
     this.overlay = null;
     this.spotlight = null;
     this.tooltip = null;
@@ -566,8 +573,19 @@ class TutorialManager {
 
     const step = this.currentFlow.steps[this.currentStepIndex];
 
+    // Clean up previous overlay
     if (this.overlay) {
       this.overlay.destroy();
+    }
+
+    // Safety: Remove any lingering overlays before creating new one
+    if (this.shadowRoot) {
+      const lingering = this.shadowRoot.querySelectorAll('.tutorial-overlay');
+      lingering.forEach(el => {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      });
     }
 
     this.overlay = new TutorialOverlay(this.shadowRoot);
@@ -624,6 +642,16 @@ class TutorialManager {
     if (this.overlay) {
       this.overlay.destroy();
       this.overlay = null;
+    }
+
+    // Safety: Clean up any lingering tutorial overlays in shadow DOM
+    if (this.shadowRoot) {
+      const lingering = this.shadowRoot.querySelectorAll('.tutorial-overlay');
+      lingering.forEach(el => {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      });
     }
 
     this.currentFlow = null;
