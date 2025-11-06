@@ -2850,8 +2850,19 @@ const ExportPanel = {
       .message.user {
         justify-content: flex-end;
       }
-      
+
       .message.assistant {
+        justify-content: flex-start;
+      }
+
+      /* Preserve alignment even when excluded/collapsed */
+      .message.user.excluded,
+      .message.user.collapsed {
+        justify-content: flex-end;
+      }
+
+      .message.assistant.excluded,
+      .message.assistant.collapsed {
         justify-content: flex-start;
       }
 
@@ -2860,6 +2871,8 @@ const ExportPanel = {
         opacity: 0.5;
         position: relative;
         transition: opacity 0.2s ease;
+        flex-direction: column; /* Allow ::after to be below content */
+        align-items: stretch; /* Reset alignment for column direction */
       }
 
       .message.excluded:hover {
@@ -2888,6 +2901,15 @@ const ExportPanel = {
         filter: grayscale(0.4);
       }
 
+      /* Wrapper for content to maintain flex alignment in excluded messages */
+      .message.excluded .thinking-container {
+        align-self: flex-start; /* Default to left for assistant */
+      }
+
+      .message.user.excluded .thinking-container {
+        align-self: flex-end; /* Keep user messages on right */
+      }
+
       /* Collapsed message styles */
       .message.collapsed .thinking-container {
         max-height: 60px;
@@ -2901,15 +2923,25 @@ const ExportPanel = {
         position: relative;
       }
 
+      /* Expand/collapse hints positioned correctly for each role */
       .message.collapsed::after {
         content: '▶ Click to expand';
         display: block;
         font-size: 11px;
         color: ${colors.accentPrimary};
         margin-top: 4px;
-        margin-left: auto;
-        text-align: right;
         font-weight: 500;
+        padding: 0 8px;
+      }
+
+      .message.user.collapsed::after {
+        text-align: right;
+        align-self: flex-end;
+      }
+
+      .message.assistant.collapsed::after {
+        text-align: left;
+        align-self: flex-start;
       }
 
       .message.collapsed:not(.excluded)::after {
@@ -2922,9 +2954,18 @@ const ExportPanel = {
         font-size: 11px;
         color: ${colors.accentPrimary};
         margin-top: 4px;
-        margin-left: auto;
-        text-align: right;
         font-weight: 500;
+        padding: 0 8px;
+      }
+
+      .message.user.excluded:not(.collapsed)::after {
+        text-align: right;
+        align-self: flex-end;
+      }
+
+      .message.assistant.excluded:not(.collapsed)::after {
+        text-align: left;
+        align-self: flex-start;
       }
 
       .thinking-container {
