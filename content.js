@@ -1544,7 +1544,7 @@ const IntegrationExportModal = {
     // Request host permissions if needed
     const hasPermission = await this.requestPermissions(service);
     if (!hasPermission) {
-      alert(`${service} integration requires permission to access ${service === 'github' ? 'api.github.com' : 'api.notion.com'}. Please grant permission when prompted.`);
+      // Permission modal already shown by requestPermissions()
       return;
     }
 
@@ -1581,11 +1581,170 @@ const IntegrationExportModal = {
         origins: [url]
       });
 
-      return requestResponse.ok;
+      if (requestResponse.ok) {
+        return true;
+      }
+
+      // Permission request failed - show detailed instructions
+      this.showPermissionInstructions(service);
+      return false;
     } catch (err) {
       console.error('[Capsula] Permission request failed:', err);
+      this.showPermissionInstructions(service);
       return false;
     }
+  },
+
+  /**
+   * Show detailed permission setup instructions
+   * @private
+   */
+  showPermissionInstructions(service) {
+    const serviceName = service === 'github' ? 'GitHub' : 'Notion';
+    const apiHost = service === 'github' ? 'api.github.com' : 'api.notion.com';
+
+    // Create instruction modal
+    const host = document.createElement('div');
+    host.id = 'capsula-permission-modal';
+    host.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483647; display: flex; align-items: center; justify-content: center;';
+
+    const shadow = host.attachShadow({ mode: 'open' });
+    const colors = ThemeUtils.getColors();
+
+    shadow.innerHTML = `
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+        }
+        .modal {
+          position: relative;
+          background: ${colors.bg};
+          color: ${colors.text};
+          border-radius: 12px;
+          padding: 24px;
+          max-width: 500px;
+          width: 90%;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+        h2 {
+          font-size: 20px;
+          margin-bottom: 16px;
+          color: ${colors.text};
+        }
+        p {
+          margin-bottom: 12px;
+          line-height: 1.5;
+          color: ${colors.text};
+          opacity: 0.9;
+        }
+        .steps {
+          background: ${colors.hover};
+          border-radius: 8px;
+          padding: 16px;
+          margin: 16px 0;
+        }
+        .step {
+          margin-bottom: 12px;
+          padding-left: 8px;
+        }
+        .step:last-child {
+          margin-bottom: 0;
+        }
+        .step strong {
+          color: ${colors.text};
+        }
+        .button-container {
+          display: flex;
+          gap: 8px;
+          margin-top: 20px;
+        }
+        button {
+          flex: 1;
+          padding: 10px 16px;
+          border-radius: 6px;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: opacity 0.2s;
+        }
+        button:hover {
+          opacity: 0.8;
+        }
+        .primary-btn {
+          background: #3b82f6;
+          color: white;
+        }
+        .secondary-btn {
+          background: ${colors.hover};
+          color: ${colors.text};
+        }
+        .code {
+          background: ${colors.hover};
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 13px;
+        }
+        .warning {
+          color: #f59e0b;
+          font-weight: 500;
+          margin-bottom: 16px;
+        }
+      </style>
+      <div class="backdrop"></div>
+      <div class="modal">
+        <h2>⚠️ Permission Required</h2>
+        <p class="warning">Capsula needs permission to access ${serviceName} API (${apiHost})</p>
+        <p>To export to ${serviceName}, you need to grant permission. If the browser prompt didn't appear or you dismissed it, you can enable it manually:</p>
+
+        <div class="steps">
+          <div class="step"><strong>1.</strong> Right-click the Capsula icon in your browser toolbar</div>
+          <div class="step"><strong>2.</strong> Select <span class="code">Manage Extension</span></div>
+          <div class="step"><strong>3.</strong> Click the <span class="code">Permissions</span> tab</div>
+          <div class="step"><strong>4.</strong> Toggle ON permission for <span class="code">${apiHost}</span></div>
+          <div class="step"><strong>5.</strong> Return to this page and try exporting again</div>
+        </div>
+
+        <p style="font-size: 13px; opacity: 0.7; margin-top: 16px;">
+          <strong>Why is this needed?</strong> Capsula needs permission to send your conversation to ${serviceName}'s servers. All requests are made directly from your browser with no intermediaries.
+        </p>
+
+        <div class="button-container">
+          <button class="secondary-btn" data-action="close">Close</button>
+          <button class="primary-btn" data-action="retry">Try Again</button>
+        </div>
+      </div>
+    `;
+
+    const closeModal = () => host.remove();
+
+    shadow.querySelector('[data-action="close"]').addEventListener('click', closeModal);
+    shadow.querySelector('[data-action="retry"]').addEventListener('click', async () => {
+      closeModal();
+      // Retry the permission request
+      const hasPermission = await this.requestPermissions(service);
+      if (hasPermission) {
+        // Retry showing the export modal
+        const existingExportModal = document.getElementById('capsula-integration-modal');
+        if (!existingExportModal) {
+          alert(`Permission granted! Please click the ${serviceName} button again to export.`);
+        }
+      }
+    });
+    shadow.querySelector('.backdrop').addEventListener('click', closeModal);
+
+    document.body.appendChild(host);
   },
 
   /**
