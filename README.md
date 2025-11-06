@@ -22,16 +22,35 @@ It works directly inside ChatGPT (and later, other AI platforms) with advanced f
   - Client-side only, privacy-first, optional host permissions
 
 ### Advanced Selection & Filtering
-- **Interactive timeline**  
-  - Vertical timeline showing conversation flow  
-  - Color-coded (blue = user, gray = assistant)  
-  - Message length scaling, scroll-synced highlights  
-  - Click-and-drag range selection with resize handles  
-- **Content filters**  
-  - 🤖 **Assistant Only** — hide user messages  
-  - 💻 **Code** — extract code blocks  
-  - 📊 **Tables** — export only tabular data  
-  - 📝 **Lists** — isolate list items  
+- **Enhanced Interactive Timeline**
+  - Vertical timeline showing conversation flow
+  - Color-coded (blue = user, gray = assistant)
+  - Message length scaling, scroll-synced highlights
+  - **Multi-selection support**:
+    - **Ctrl+Click**: Toggle individual messages on/off
+    - **Shift+Click**: Extend selection from last anchor
+    - **Ctrl+Shift+Click**: Add range to existing selection
+    - **Ctrl+Drag**: Add/remove multiple messages while dragging
+    - **Right-Click**: Clear all selections
+  - Click-and-drag range selection with resize handles
+  - Non-contiguous selections for complex filtering
+- **Interactive Message Toggles**
+  - Checkbox button on each message in preview area
+  - Click to include/exclude messages from export
+  - Visual feedback (green checkmark = included)
+  - Bidirectional sync with timeline selection
+  - No keyboard shortcuts required
+- **Smart Message Visibility**
+  - Excluded messages shown greyed-out instead of hidden
+  - Auto-collapse excluded messages for clarity
+  - Click to expand/collapse for review
+  - Clear "(Not in export)" labels
+  - Preserved message alignment (user right, assistant left)
+- **Content filters**
+  - 🤖 **Assistant Only** — hide user messages
+  - 💻 **Code** — extract code blocks
+  - 📊 **Tables** — export only tabular data
+  - 📝 **Lists** — isolate list items
   - **Range selection** — export just part of a conversation  
 
 ### User Interface
@@ -112,11 +131,23 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 3. Combine filters as needed  
 4. Export the filtered result  
 
-### Range Selection
-- Use the timeline to drag-select a range  
-- Or click + Shift-click messages to define a segment  
-- Adjust with resize handles  
-- Click **Clear Selection** to reset  
+### Message Selection
+- **Timeline Selection**:
+  - Click and drag on timeline to select a range
+  - Ctrl+Click to toggle individual messages on/off
+  - Shift+Click to extend selection from last click
+  - Ctrl+Shift+Click to add range to existing selection
+  - Ctrl+Drag to add/remove multiple messages
+  - Right-click to clear all selections
+  - Adjust selection with resize handles
+- **Preview Area Selection**:
+  - Click checkbox next to "You" or "ChatGPT" label
+  - Toggle messages in/out of export while reviewing
+  - Greyed-out messages are excluded from export
+  - Click excluded messages to expand/collapse
+- **Clear Selection**:
+  - Click **Clear Selection** button to reset to all messages
+  - Or manually toggle all messages back on  
 
 ### Quick Export
 - Right-click any assistant message  
@@ -298,6 +329,16 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
+
+### Unreleased (Next Version)
+- **Enhanced Timeline with Multi-Selection**: Ctrl+Click, Shift+Click, Ctrl+Drag for advanced message selection
+- **Interactive Message Toggles**: Checkbox on each message to include/exclude from export
+- **Smart Message Visibility**: Excluded messages shown greyed-out instead of hidden
+- Auto-collapse excluded messages with click-to-expand
+- Bidirectional sync between timeline and preview toggles
+- Non-contiguous selections for complex filtering needs
+- Preserved message alignment (user right, assistant left)
+- Improved UX with multiple selection methods (no keyboard shortcuts required)
 
 ### v1.2.0 (Latest)
 - **GitHub Integration:** Export conversations directly to GitHub Gists or Issues
