@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Enhancements
+
+#### Tutorial System
+- **Versioned Tutorial Nudges**: Context-based help for first-time users
+  - Tutorial state stored in browser.storage.local (survives domain shifts)
+  - Versioned tutorial keys (e.g., `github_modal:v1`, `notion_modal:v1`)
+  - Bumping version re-prompts all users once for new features
+  - Non-intrusive 2-step guides shown when opening GitHub/Notion modals
+  - Users can dismiss tutorials with "Got it!" or "Don't show again"
+  - Reset option in Settings > Help & Tutorials
+
 ### 🎉 Major New Features
 
 #### Enhanced Timeline with Multi-Selection

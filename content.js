@@ -107,6 +107,331 @@ const CFG = {
 };
 
 /* ===========================
+   Tutorial Management (Versioned)
+   =========================== */
+/**
+ * TutorialManager - Manages versioned tutorial state
+ *
+ * Features:
+ * - Versioned tutorial keys (tutorial:v1, tutorial:v2, etc.)
+ * - Uses browser.storage.local for persistence (survives domain shifts)
+ * - Context-based nudges for first-time feature usage
+ * - Non-intrusive 2-step guides
+ *
+ * When bumping tutorial version:
+ * - Update TUTORIAL_VERSION constant
+ * - Add new tutorial keys to defaults
+ * - Users will see new tutorials once, old ones won't re-trigger
+ */
+const TutorialManager = {
+  TUTORIAL_VERSION: 'v1', // Increment this to re-prompt all users
+  STORAGE_KEY: 'capsula_tutorial_state',
+
+  /**
+   * Get tutorial state from browser.storage.local
+   * @returns {Promise<Object>}
+   */
+  async getState() {
+    try {
+      const result = await browser.storage.local.get(this.STORAGE_KEY);
+      const state = result[this.STORAGE_KEY] || {};
+
+      // Ensure version key exists
+      if (!state.version) {
+        state.version = this.TUTORIAL_VERSION;
+      }
+
+      return state;
+    } catch (e) {
+      console.warn('[Capsula] Failed to load tutorial state:', e);
+      return { version: this.TUTORIAL_VERSION };
+    }
+  },
+
+  /**
+   * Save tutorial state to browser.storage.local
+   * @param {Object} state
+   * @returns {Promise<boolean>}
+   */
+  async saveState(state) {
+    try {
+      await browser.storage.local.set({ [this.STORAGE_KEY]: state });
+      return true;
+    } catch (e) {
+      console.error('[Capsula] Failed to save tutorial state:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Check if a tutorial has been seen for the current version
+   * @param {string} tutorialKey - e.g. 'github_modal', 'notion_modal'
+   * @returns {Promise<boolean>}
+   */
+  async hasSeen(tutorialKey) {
+    const state = await this.getState();
+    const versionedKey = `${tutorialKey}:${this.TUTORIAL_VERSION}`;
+    return !!state[versionedKey];
+  },
+
+  /**
+   * Mark a tutorial as seen
+   * @param {string} tutorialKey
+   * @returns {Promise<boolean>}
+   */
+  async markSeen(tutorialKey) {
+    const state = await this.getState();
+    const versionedKey = `${tutorialKey}:${this.TUTORIAL_VERSION}`;
+    state[versionedKey] = true;
+    state.version = this.TUTORIAL_VERSION;
+    return await this.saveState(state);
+  },
+
+  /**
+   * Reset all tutorial state (for testing or user request)
+   * @returns {Promise<boolean>}
+   */
+  async reset() {
+    try {
+      await browser.storage.local.remove(this.STORAGE_KEY);
+      return true;
+    } catch (e) {
+      console.error('[Capsula] Failed to reset tutorial state:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Show a context-based tutorial nudge
+   * @param {string} tutorialKey
+   * @param {Object} config
+   * @param {string} config.title - Tutorial title
+   * @param {Array<string>} config.steps - Array of step descriptions
+   * @param {HTMLElement} config.target - Target element to attach to
+   * @param {string} [config.position='top'] - Position relative to target
+   * @returns {Promise<void>}
+   */
+  async showNudge(tutorialKey, config) {
+    // Check if already seen for this version
+    if (await this.hasSeen(tutorialKey)) {
+      return;
+    }
+
+    const { title, steps, target, position = 'top' } = config;
+
+    if (!target) {
+      console.warn('[Capsula] Tutorial target not found');
+      return;
+    }
+
+    // Create nudge element
+    const nudge = document.createElement('div');
+    nudge.id = `capsula-tutorial-${tutorialKey}`;
+    nudge.style.cssText = 'position: absolute; z-index: 2147483647;';
+
+    const shadow = nudge.attachShadow({ mode: 'open' });
+    const colors = ThemeUtils.getColors();
+
+    shadow.innerHTML = `
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .tutorial-nudge {
+          background: ${colors.bg};
+          color: ${colors.text};
+          border: 2px solid #3b82f6;
+          border-radius: 8px;
+          padding: 16px;
+          max-width: 320px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .tutorial-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .tutorial-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #3b82f6;
+        }
+        .tutorial-close {
+          background: none;
+          border: none;
+          color: ${colors.text};
+          cursor: pointer;
+          font-size: 20px;
+          line-height: 1;
+          opacity: 0.6;
+          padding: 0;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .tutorial-close:hover {
+          opacity: 1;
+        }
+        .tutorial-steps {
+          margin-bottom: 12px;
+        }
+        .tutorial-step {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          margin-bottom: 8px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .tutorial-step:last-child {
+          margin-bottom: 0;
+        }
+        .step-number {
+          background: #3b82f6;
+          color: white;
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 600;
+          flex-shrink: 0;
+        }
+        .step-text {
+          flex: 1;
+          color: ${colors.text};
+          opacity: 0.9;
+        }
+        .tutorial-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+        .tutorial-btn {
+          padding: 6px 12px;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: opacity 0.2s;
+        }
+        .tutorial-btn:hover {
+          opacity: 0.8;
+        }
+        .btn-secondary {
+          background: ${colors.hover};
+          color: ${colors.text};
+        }
+        .btn-primary {
+          background: #3b82f6;
+          color: white;
+        }
+        .tutorial-arrow {
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-style: solid;
+        }
+        .arrow-bottom {
+          bottom: -10px;
+          left: 50%;
+          transform: translateX(-50%);
+          border-width: 10px 10px 0 10px;
+          border-color: #3b82f6 transparent transparent transparent;
+        }
+        .arrow-top {
+          top: -10px;
+          left: 50%;
+          transform: translateX(-50%);
+          border-width: 0 10px 10px 10px;
+          border-color: transparent transparent #3b82f6 transparent;
+        }
+      </style>
+      <div class="tutorial-nudge">
+        <div class="tutorial-arrow arrow-${position === 'top' ? 'bottom' : 'top'}"></div>
+        <div class="tutorial-header">
+          <div class="tutorial-title">${title}</div>
+          <button class="tutorial-close" aria-label="Close tutorial">&times;</button>
+        </div>
+        <div class="tutorial-steps">
+          ${steps.map((step, i) => `
+            <div class="tutorial-step">
+              <div class="step-number">${i + 1}</div>
+              <div class="step-text">${step}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="tutorial-footer">
+          <button class="tutorial-btn btn-secondary" data-action="dismiss">Don't show again</button>
+          <button class="tutorial-btn btn-primary" data-action="got-it">Got it!</button>
+        </div>
+      </div>
+    `;
+
+    // Position nudge relative to target
+    const positionNudge = () => {
+      const targetRect = target.getBoundingClientRect();
+      const nudgeContent = shadow.querySelector('.tutorial-nudge');
+
+      if (!nudgeContent) return;
+
+      const nudgeRect = nudgeContent.getBoundingClientRect();
+
+      if (position === 'top') {
+        nudge.style.top = `${targetRect.bottom + window.scrollY + 16}px`;
+        nudge.style.left = `${targetRect.left + window.scrollX + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
+      } else {
+        nudge.style.top = `${targetRect.top + window.scrollY - nudgeRect.height - 16}px`;
+        nudge.style.left = `${targetRect.left + window.scrollX + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
+      }
+    };
+
+    // Event handlers
+    const closeNudge = async (markAsSeen = true) => {
+      if (markAsSeen) {
+        await this.markSeen(tutorialKey);
+      }
+      nudge.remove();
+    };
+
+    shadow.querySelector('[data-action="got-it"]').addEventListener('click', () => closeNudge(true));
+    shadow.querySelector('[data-action="dismiss"]').addEventListener('click', () => closeNudge(true));
+    shadow.querySelector('.tutorial-close').addEventListener('click', () => closeNudge(false));
+
+    // Append to body and position
+    document.body.appendChild(nudge);
+
+    // Position after a short delay to ensure rendering
+    setTimeout(positionNudge, 10);
+
+    // Reposition on window resize
+    const resizeHandler = () => positionNudge();
+    window.addEventListener('resize', resizeHandler);
+
+    // Cleanup on remove
+    nudge.addEventListener('remove', () => {
+      window.removeEventListener('resize', resizeHandler);
+    });
+  }
+};
+
+/* ===========================
    Settings Management
    =========================== */
 class Settings {
@@ -1070,6 +1395,17 @@ const SettingsPanel = {
               <div class="integration-result" data-result="notion" style="display: none;"></div>
             </div>
           </div>
+
+          <div class="setting-group">
+            <h3>Help & Tutorials</h3>
+            <p class="setting-description">Reset tutorial nudges to see them again on first use.</p>
+
+            <div class="integration-actions">
+              <button class="secondary-btn" data-action="reset-tutorials">Reset All Tutorials</button>
+            </div>
+
+            <div class="tutorial-reset-result" style="display: none; margin-top: 8px; padding: 8px; border-radius: 4px;"></div>
+          </div>
         </div>
 
         <div class="settings-footer">
@@ -1122,6 +1458,35 @@ const SettingsPanel = {
         input.dataset.changed = 'true';
       });
     });
+
+    // Reset tutorials button
+    const resetTutorialsBtn = container.querySelector('[data-action="reset-tutorials"]');
+    if (resetTutorialsBtn) {
+      resetTutorialsBtn.addEventListener('click', async () => {
+        if (confirm('Reset all tutorials? You will see tutorial nudges again on first use.')) {
+          const success = await TutorialManager.reset();
+          const resultEl = container.querySelector('.tutorial-reset-result');
+
+          if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.textContent = success
+              ? '✓ All tutorials have been reset'
+              : '✗ Failed to reset tutorials';
+            resultEl.style.background = success ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+            resultEl.style.color = success ? '#10b981' : '#ef4444';
+
+            // Hide the message after 3 seconds
+            setTimeout(() => {
+              resultEl.style.display = 'none';
+            }, 3000);
+          }
+
+          if (success) {
+            NotificationManager.showToast('Tutorials reset successfully');
+          }
+        }
+      });
+    }
 
     // Integration handlers
     this.attachIntegrationHandlers(container);
@@ -1691,6 +2056,41 @@ const IntegrationExportModal = {
     // when ExportPanel content updates
     const modal = this.createModal(service, harvest);
     document.body.appendChild(modal);
+
+    // Show context-based tutorial nudge (first time only)
+    await this.showTutorialNudge(service, modal);
+  },
+
+  /**
+   * Show tutorial nudge for first-time modal users
+   * @private
+   */
+  async showTutorialNudge(service, modalHost) {
+    const tutorialKey = `${service}_modal`;
+    const shadow = modalHost.shadowRoot;
+
+    // Wait a bit for modal to render and be visible
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const modalContainer = shadow.querySelector('.modal-container');
+    if (!modalContainer) return;
+
+    const steps = service === 'github'
+      ? [
+          'Fill in the gist filename and description',
+          'Click "Create Gist" to export your conversation to GitHub'
+        ]
+      : [
+          'Enter a page title for your conversation',
+          'Select a parent page (optional) and click "Create Page"'
+        ];
+
+    await TutorialManager.showNudge(tutorialKey, {
+      title: `Export to ${service === 'github' ? 'GitHub' : 'Notion'}`,
+      steps,
+      target: modalContainer,
+      position: 'top'
+    });
   },
 
   /**
