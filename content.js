@@ -1527,6 +1527,13 @@ const IntegrationExportModal = {
    * @param {ShadowRoot} parentShadow
    */
   async show(service, harvest, parentShadow) {
+    // If modal is already open, don't create a new one (prevents duplicate modals)
+    const existingModal = document.getElementById('capsula-integration-modal');
+    if (existingModal) {
+      console.log('[Capsula] Modal already open, ignoring duplicate show() call');
+      return;
+    }
+
     // Check if token exists
     const token = await IntegrationStorage.getToken(service);
     if (!token) {
@@ -1539,12 +1546,6 @@ const IntegrationExportModal = {
     if (!hasPermission) {
       alert(`${service} integration requires permission to access ${service === 'github' ? 'api.github.com' : 'api.notion.com'}. Please grant permission when prompted.`);
       return;
-    }
-
-    // Remove any existing modal first (cleanup)
-    const existingModal = document.getElementById('capsula-integration-modal');
-    if (existingModal) {
-      existingModal.remove();
     }
 
     // Create and show modal
@@ -1713,12 +1714,29 @@ const IntegrationExportModal = {
     const cancelBtn = shadow.querySelector('.modal-cancel');
     const submitBtn = shadow.querySelector('.modal-submit');
     const backdrop = shadow.querySelector('.modal-backdrop');
+    const modalContainer = shadow.querySelector('.modal-container');
 
     const close = () => host.remove();
 
     closeBtn?.addEventListener('click', close);
     cancelBtn?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
+
+    // Prevent keyboard events from bubbling out of modal to avoid interference
+    // with global keyboard shortcuts or ChatGPT's event handlers
+    if (modalContainer) {
+      modalContainer.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+      }, true);
+
+      modalContainer.addEventListener('keyup', (e) => {
+        e.stopPropagation();
+      }, true);
+
+      modalContainer.addEventListener('keypress', (e) => {
+        e.stopPropagation();
+      }, true);
+    }
 
     // GitHub-specific handlers
     if (service === 'github') {
