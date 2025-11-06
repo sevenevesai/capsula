@@ -171,7 +171,9 @@ const TutorialManager = {
   async hasSeen(tutorialKey) {
     const state = await this.getState();
     const versionedKey = `${tutorialKey}:${this.TUTORIAL_VERSION}`;
-    return !!state[versionedKey];
+    const result = !!state[versionedKey];
+    console.log('[Capsula] hasSeen check - key:', versionedKey, 'state:', state, 'result:', result);
+    return result;
   },
 
   /**
@@ -193,7 +195,9 @@ const TutorialManager = {
    */
   async reset() {
     try {
+      console.log('[Capsula] Resetting tutorial state, removing key:', this.STORAGE_KEY);
       await browser.storage.local.remove(this.STORAGE_KEY);
+      console.log('[Capsula] Tutorial state reset successfully');
       return true;
     } catch (e) {
       console.error('[Capsula] Failed to reset tutorial state:', e);
@@ -212,8 +216,14 @@ const TutorialManager = {
    * @returns {Promise<void>}
    */
   async showNudge(tutorialKey, config) {
+    console.log('[Capsula] TutorialManager.showNudge called with key:', tutorialKey);
+
     // Check if already seen for this version
-    if (await this.hasSeen(tutorialKey)) {
+    const hasSeen = await this.hasSeen(tutorialKey);
+    console.log('[Capsula] Tutorial hasSeen:', hasSeen);
+
+    if (hasSeen) {
+      console.log('[Capsula] Tutorial already seen, skipping');
       return;
     }
 
@@ -223,6 +233,8 @@ const TutorialManager = {
       console.warn('[Capsula] Tutorial target not found');
       return;
     }
+
+    console.log('[Capsula] Creating tutorial nudge element');
 
     // Create nudge element
     const nudge = document.createElement('div');
@@ -389,7 +401,10 @@ const TutorialManager = {
       const targetRect = target.getBoundingClientRect();
       const nudgeContent = shadow.querySelector('.tutorial-nudge');
 
-      if (!nudgeContent) return;
+      if (!nudgeContent) {
+        console.warn('[Capsula] nudgeContent not found in shadow DOM');
+        return;
+      }
 
       const nudgeRect = nudgeContent.getBoundingClientRect();
 
@@ -400,6 +415,14 @@ const TutorialManager = {
         nudge.style.top = `${targetRect.top + window.scrollY - nudgeRect.height - 16}px`;
         nudge.style.left = `${targetRect.left + window.scrollX + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
       }
+
+      console.log('[Capsula] Tutorial positioned at:', {
+        top: nudge.style.top,
+        left: nudge.style.left,
+        position: position,
+        targetRect: targetRect,
+        nudgeRect: nudgeRect
+      });
     };
 
     // Event handlers
@@ -416,6 +439,7 @@ const TutorialManager = {
 
     // Append to body and position
     document.body.appendChild(nudge);
+    console.log('[Capsula] Tutorial nudge appended to body, ID:', nudge.id);
 
     // Position after a short delay to ensure rendering
     setTimeout(positionNudge, 10);
@@ -2030,6 +2054,8 @@ const IntegrationExportModal = {
    * @param {ShadowRoot} parentShadow
    */
   async show(service, harvest, parentShadow) {
+    console.log('[Capsula] IntegrationExportModal.show() called for:', service);
+
     // If modal is already open, don't create a new one (prevents duplicate modals)
     const existingModal = document.getElementById('capsula-integration-modal');
     if (existingModal) {
@@ -2040,6 +2066,7 @@ const IntegrationExportModal = {
     // Check if token exists
     const token = await IntegrationStorage.getToken(service);
     if (!token) {
+      console.log('[Capsula] No token found for:', service);
       alert(`Please configure your ${service} token in Settings first.`);
       return;
     }
@@ -2047,10 +2074,12 @@ const IntegrationExportModal = {
     // Request host permissions if needed
     const hasPermission = await this.requestPermissions(service);
     if (!hasPermission) {
+      console.log('[Capsula] Permissions not granted for:', service);
       // Permission modal already shown by requestPermissions()
       return;
     }
 
+    console.log('[Capsula] Creating and appending modal for:', service);
     // Create and show modal
     // Append to document.body instead of parentShadow to avoid being destroyed
     // when ExportPanel content updates
@@ -2058,7 +2087,9 @@ const IntegrationExportModal = {
     document.body.appendChild(modal);
 
     // Show context-based tutorial nudge (first time only)
+    console.log('[Capsula] About to call showTutorialNudge for:', service);
     await this.showTutorialNudge(service, modal);
+    console.log('[Capsula] showTutorialNudge completed for:', service);
   },
 
   /**
@@ -2069,11 +2100,18 @@ const IntegrationExportModal = {
     const tutorialKey = `${service}_modal`;
     const shadow = modalHost.shadowRoot;
 
+    console.log('[Capsula] showTutorialNudge called for:', service, 'shadowRoot:', shadow);
+
     // Wait a bit for modal to render and be visible
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const modalContainer = shadow.querySelector('.modal-container');
-    if (!modalContainer) return;
+    console.log('[Capsula] modalContainer found:', modalContainer);
+
+    if (!modalContainer) {
+      console.warn('[Capsula] Tutorial target .modal-container not found in shadow DOM');
+      return;
+    }
 
     const steps = service === 'github'
       ? [
@@ -2085,6 +2123,7 @@ const IntegrationExportModal = {
           'Select a parent page (optional) and click "Create Page"'
         ];
 
+    console.log('[Capsula] Calling TutorialManager.showNudge with key:', tutorialKey);
     await TutorialManager.showNudge(tutorialKey, {
       title: `Export to ${service === 'github' ? 'GitHub' : 'Notion'}`,
       steps,
