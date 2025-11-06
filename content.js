@@ -212,10 +212,11 @@ const TutorialManager = {
    * @returns {Promise<void>}
    */
   async showNudge(tutorialKey, config) {
-    // Check if already seen for this version
-    if (await this.hasSeen(tutorialKey)) {
-      return;
-    }
+    // TESTING: Always show tutorial (hasSeen check disabled)
+    // TODO: Re-enable this check after testing
+    // if (await this.hasSeen(tutorialKey)) {
+    //   return;
+    // }
 
     const { title, steps, target, position = 'top' } = config;
 
@@ -224,7 +225,9 @@ const TutorialManager = {
       return;
     }
 
-    // Create nudge element
+    console.log('[Capsula] Showing tutorial for:', tutorialKey, 'target:', target);
+
+    // Create nudge element with fixed positioning
     const nudge = document.createElement('div');
     nudge.id = `capsula-tutorial-${tutorialKey}`;
     nudge.style.cssText = 'position: fixed; z-index: 2147483648;';
@@ -389,10 +392,14 @@ const TutorialManager = {
       const targetRect = target.getBoundingClientRect();
       const nudgeContent = shadow.querySelector('.tutorial-nudge');
 
-      if (!nudgeContent) return;
+      if (!nudgeContent) {
+        console.warn('[Capsula] nudgeContent not found in shadow');
+        return;
+      }
 
       const nudgeRect = nudgeContent.getBoundingClientRect();
 
+      // Use fixed positioning (no scrollY/scrollX needed)
       if (position === 'top') {
         nudge.style.top = `${targetRect.bottom + 16}px`;
         nudge.style.left = `${targetRect.left + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
@@ -400,6 +407,8 @@ const TutorialManager = {
         nudge.style.top = `${targetRect.top - nudgeRect.height - 16}px`;
         nudge.style.left = `${targetRect.left + (targetRect.width / 2) - (nudgeRect.width / 2)}px`;
       }
+
+      console.log('[Capsula] Tutorial positioned at:', nudge.style.top, nudge.style.left);
     };
 
     // Event handlers
@@ -416,6 +425,7 @@ const TutorialManager = {
 
     // Append to body and position
     document.body.appendChild(nudge);
+    console.log('[Capsula] Tutorial nudge appended to body, id:', nudge.id);
 
     // Position after a short delay to ensure rendering
     setTimeout(positionNudge, 10);
