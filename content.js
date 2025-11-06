@@ -146,40 +146,72 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-2',
-          title: '📊 Timeline',
-          description: 'This vertical timeline shows your entire conversation. Each segment represents a message (blue = you, gray = ChatGPT).',
+          title: '📊 Timeline Overview',
+          description: 'This vertical timeline shows your entire conversation. Each segment represents a message (blue = you, gray = ChatGPT). Click and drag to select a range of messages.',
           target: '.timeline-panel',
           position: 'right',
           buttons: ['skip', 'next']
         },
         {
           id: 'welcome-3',
+          title: '🎯 Advanced Selection',
+          description: '<strong>Pro tip:</strong> Use keyboard shortcuts for precise control:<br>• <strong>Ctrl+Click:</strong> Toggle individual messages<br>• <strong>Shift+Click:</strong> Extend selection<br>• <strong>Right-Click:</strong> Clear all selections',
+          target: '.timeline-track',
+          position: 'right',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-4',
           title: '💬 Preview Area',
-          description: 'See exactly what will be exported. Messages shown here match your selections and filters.',
+          description: 'See exactly what will be exported. Scroll through your conversation and review the content before exporting.',
           target: '.chat-preview',
           position: 'left',
           buttons: ['skip', 'next']
         },
         {
-          id: 'welcome-4',
-          title: '🎛️ Filter Controls',
-          description: 'Quick filters to show only what you need: Assistant Only, Code blocks, Tables, or Lists.',
+          id: 'welcome-5',
+          title: '☑️ Message Checkboxes',
+          description: 'Each message has a checkbox toggle (look for the small checkbox on the role labels). Click to include/exclude specific messages from your export. Great for fine-tuning!',
+          target: '.chat-preview',
+          position: 'left',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-6',
+          title: '🎛️ Content Filters',
+          description: 'Quick filters let you show only what you need: Assistant messages only, Code blocks, Tables, or Lists. Mix and match!',
           target: '.filter-buttons',
           position: 'bottom',
           buttons: ['skip', 'next']
         },
         {
-          id: 'welcome-5',
-          title: '📥 Export Options',
-          description: 'Choose your format and destination: Markdown, HTML, JSON, or export directly to GitHub or Notion.',
-          target: '.footer',
+          id: 'welcome-7',
+          title: '📄 Export Formats',
+          description: 'Choose your export format: <strong>Markdown</strong> (.md) for clean text, <strong>HTML</strong> for styled pages, or <strong>JSON</strong> for structured data.',
+          target: '.format-select',
           position: 'top',
           buttons: ['skip', 'next']
         },
         {
-          id: 'welcome-6',
+          id: 'welcome-8',
+          title: '🚀 GitHub Integration',
+          description: 'Export directly to <strong>GitHub Gists</strong> (public/private snippets) or <strong>GitHub Issues</strong>. Configure your token in Settings first!',
+          target: '.github-btn',
+          position: 'top',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-9',
+          title: '📝 Notion Integration',
+          description: 'Create beautiful <strong>Notion pages</strong> directly from your conversations. Select a parent page and Capsula handles the formatting!',
+          target: '.notion-btn',
+          position: 'top',
+          buttons: ['skip', 'next']
+        },
+        {
+          id: 'welcome-10',
           title: '✨ You\'re All Set!',
-          description: 'Click on any feature to learn more, or start exporting! Tip: Hover over buttons for more details.',
+          description: 'You\'re ready to export! Remember: hover over any button for quick tips. Access Settings (⚙️) to configure integrations or customize appearance.',
           target: '.panel',
           position: 'center',
           buttons: ['done']

@@ -12,22 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🎉 Major New Features
 
 #### Interactive Tutorial System
-- **Get-Started Walkthrough**: Non-intrusive tutorial overlays guide new users through key features
-  - Welcome flow introduces timeline, preview, filters, and export options
-  - Timeline selection tutorial explains multi-selection keyboard shortcuts
-  - Message toggles tutorial demonstrates checkbox functionality
+- **Comprehensive Get-Started Walkthrough**: Non-intrusive tutorial overlays guide new users through key features
+  - 10-step welcome flow covering all major functionality
+  - Timeline overview with visual representation explanation
+  - Advanced selection keyboard shortcuts (Ctrl+Click, Shift+Click, Right-Click)
+  - Preview area and message checkbox toggles
+  - Content filter demonstrations
+  - Export format options (Markdown, HTML, JSON)
+  - GitHub integration explanation (Gists and Issues)
+  - Notion integration walkthrough
   - Smart spotlight highlighting with semi-transparent overlays
-  - Skip or complete tutorials at any time
-  - Elegant tooltip positioning with viewport constraints
-- **Trigger Points**: Tutorials show automatically at optimal moments
-  - Welcome tutorial triggers on first panel open
-  - Additional flows available for specific features
-  - For testing: tutorials show every time (configurable for production)
+  - Skip or complete tutorials at any time with accessible controls
+  - Elegant tooltip positioning with automatic viewport constraints
+- **Context-Aware Steps**: Each step highlights the relevant UI element
+  - Timeline panel for selection features
+  - Format dropdown for export options
+  - Integration buttons for GitHub and Notion
+  - Filter buttons for content filtering
+  - Positioned tooltips avoid viewport edges
 - **Tutorial Management**:
-  - State tracking for completed tutorials (future: don't repeat)
-  - Configurable flows with multiple steps per feature
-  - Clean animations and transitions
-  - Accessible button controls (Skip, Next, Got it!)
+  - Triggers automatically on panel open
+  - State tracking for completed tutorials (configurable)
+  - For testing: tutorials show every time (production: once per user)
+  - Clean fade animations and smooth transitions
+  - Proper cleanup prevents interaction blocking
 
 #### Enhanced Timeline with Multi-Selection
 - **Multi-Selection Support**: Advanced message selection with keyboard modifiers
