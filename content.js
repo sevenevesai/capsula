@@ -146,7 +146,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-2',
-          title: '📊 Timeline Overview',
+          title: 'Timeline Overview',
           description: 'This vertical timeline shows your entire conversation. Each segment represents a message (blue = you, gray = ChatGPT). Click and drag to select a range of messages.',
           target: '.timeline-panel',
           position: 'right',
@@ -154,7 +154,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-3',
-          title: '🎯 Advanced Selection',
+          title: 'Advanced Selection',
           description: '<strong>Pro tip:</strong> Use keyboard shortcuts for precise control:<br>• <strong>Ctrl+Click:</strong> Toggle individual messages<br>• <strong>Shift+Click:</strong> Extend selection<br>• <strong>Right-Click:</strong> Clear all selections',
           target: '.timeline-track',
           position: 'right',
@@ -162,7 +162,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-4',
-          title: '💬 Preview Area',
+          title: 'Preview Area',
           description: 'See exactly what will be exported. Scroll through your conversation and review the content before exporting.',
           target: '.chat-preview',
           position: 'left',
@@ -170,7 +170,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-5',
-          title: '☑️ Message Checkboxes',
+          title: 'Message Checkboxes',
           description: 'Each message has a checkbox toggle (look for the small checkbox on the role labels). Click to include/exclude specific messages from your export. Great for fine-tuning!',
           target: '.chat-preview',
           position: 'left',
@@ -178,7 +178,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-6',
-          title: '🎛️ Content Filters',
+          title: 'Content Filters',
           description: 'Quick filters let you show only what you need: Assistant messages only, Code blocks, Tables, or Lists. Mix and match!',
           target: '.filter-buttons',
           position: 'bottom',
@@ -186,7 +186,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-7',
-          title: '📄 Export Formats',
+          title: 'Export Formats',
           description: 'Choose your export format: <strong>Markdown</strong> (.md) for clean text, <strong>HTML</strong> for styled pages, or <strong>JSON</strong> for structured data.',
           target: '.format-select',
           position: 'top',
@@ -194,7 +194,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-8',
-          title: '🚀 GitHub Integration',
+          title: 'GitHub Integration',
           description: 'Export directly to <strong>GitHub Gists</strong> (public/private snippets) or <strong>GitHub Issues</strong>. Configure your token in Settings first!',
           target: '.github-btn',
           position: 'top',
@@ -202,7 +202,7 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-9',
-          title: '📝 Notion Integration',
+          title: 'Notion Integration',
           description: 'Create beautiful <strong>Notion pages</strong> directly from your conversations. Select a parent page and Capsula handles the formatting!',
           target: '.notion-btn',
           position: 'top',
@@ -210,8 +210,8 @@ const TutorialConfig = {
         },
         {
           id: 'welcome-10',
-          title: '✨ You\'re All Set!',
-          description: 'You\'re ready to export! Remember: hover over any button for quick tips. Access Settings (⚙️) to configure integrations or customize appearance.',
+          title: 'You\'re All Set!',
+          description: 'You\'re ready to export! Remember: hover over any button for quick tips. Access Settings to configure integrations or customize appearance.',
           target: '.panel',
           position: 'center',
           buttons: ['done']
@@ -1865,7 +1865,12 @@ const DashboardView = {
               <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
             </svg>
           </button>
-          <h2 class="dashboard-title">📊 Conversation Dashboard</h2>
+          <h2 class="dashboard-title">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" style="vertical-align: middle; margin-right: 8px;">
+              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+            </svg>
+            Conversation Dashboard
+          </h2>
           <button class="export-dashboard-btn" data-action="export-dashboard">
             Export Dashboard
           </button>
@@ -2481,7 +2486,12 @@ const IntegrationExportModal = {
       </style>
       <div class="backdrop"></div>
       <div class="modal">
-        <h2>⚠️ Permission Required</h2>
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" style="vertical-align: middle; margin-right: 8px; color: #f59e0b;">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          Permission Required
+        </h2>
         <p class="warning">Capsula needs permission to access ${serviceName} API (${apiHost})</p>
         <p>To export to ${serviceName}, you need to grant permission. If the browser prompt didn't appear or you dismissed it, you can enable it manually:</p>
 
@@ -2705,9 +2715,12 @@ const IntegrationExportModal = {
               const title = page.properties?.title?.title?.[0]?.plain_text ||
                             page.properties?.Name?.title?.[0]?.plain_text ||
                             'Untitled';
+              const icon = page.object === 'database'
+                ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 6px;"><path d="M3 2.5a2.5 2.5 0 015 0 2.5 2.5 0 015 0v.006c0 .07 0 .27-.038.494H15a1 1 0 011 1v2a1 1 0 01-1 1v7.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 14.5V7a1 1 0 01-1-1V4a1 1 0 011-1h2.038A2.968 2.968 0 013 2.506V2.5zm1.068.5H7v-.5a1.5 1.5 0 10-3 0c0 .085.002.274.045.43a.522.522 0 00.023.07zM9 3h2.932a.56.56 0 00.023-.07c.043-.156.045-.345.045-.43a1.5 1.5 0 00-3 0V3zM1 4v2h6V4H1zm8 0v2h6V4H9zm5 3H9v8h4.5a.5.5 0 00.5-.5V7zm-7 8V7H2v7.5a.5.5 0 00.5.5H7z"/></svg>'
+                : '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 6px;"><path d="M4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4.707A1 1 0 0013.707 4L10 .293A1 1 0 009.293 0H4zm0 1h5v2A1.5 1.5 0 0010.5 4.5h2V14a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z"/></svg>';
               return `
                 <div class="page-item" data-page-id="${page.id}" data-page-type="${page.object === 'database' ? 'database' : 'page'}" style="padding: 8px; cursor: pointer; border-radius: 4px; margin-bottom: 4px;">
-                  ${page.object === 'database' ? '🗂️' : '📄'} ${title}
+                  ${icon} ${title}
                 </div>
               `;
             }).join('');
@@ -3191,16 +3204,29 @@ const ExportPanel = {
       <div class="header">
         <div class="filter-buttons">
           <button class="filter-btn" data-filter="assistantOnly" title="Show only assistant messages">
-            <span class="icon">🤖</span> Assistant Only
+            <svg class="icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.58 26.58 0 004.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.933.933 0 01-.765.935c-.845.147-2.34.346-4.235.346-1.895 0-3.39-.2-4.235-.346A.933.933 0 013 9.219V8.062zm4.542-.827a.25.25 0 00-.217.068l-.92.9a24.767 24.767 0 01-1.871-.183.25.25 0 00-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 00.189-.071l.754-.736.847 1.71a.25.25 0 00.404.062l.932-.97a25.286 25.286 0 001.922-.188.25.25 0 00-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 00-.166.076l-.754.785-.842-1.7a.25.25 0 00-.182-.135z"/>
+              <path d="M8.5 1.866a1 1 0 10-1 0V3h-2A4.5 4.5 0 001 7.5V8a1 1 0 00-1 1v2a1 1 0 001 1v1a2 2 0 002 2h10a2 2 0 002-2v-1a1 1 0 001-1V9a1 1 0 00-1-1v-.5A4.5 4.5 0 0010.5 3h-2V1.866zM14 7.5V13a1 1 0 01-1 1H3a1 1 0 01-1-1V7.5A3.5 3.5 0 015.5 4h5A3.5 3.5 0 0114 7.5z"/>
+            </svg>
+            Assistant Only
           </button>
           <button class="filter-btn" data-filter="code" title="Show only code blocks">
-            <span class="icon">💻</span> Code
+            <svg class="icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5.854 4.854a.5.5 0 10-.708-.708l-3.5 3.5a.5.5 0 000 .708l3.5 3.5a.5.5 0 00.708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 01.708-.708l3.5 3.5a.5.5 0 010 .708l-3.5 3.5a.5.5 0 01-.708-.708L13.293 8l-3.147-3.146z"/>
+            </svg>
+            Code
           </button>
           <button class="filter-btn" data-filter="tables" title="Show only tables">
-            <span class="icon">📊</span> Tables
+            <svg class="icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H2a2 2 0 01-2-2V2zm15 2h-4v3h4V4zm0 4h-4v3h4V8zm0 4h-4v3h3a1 1 0 001-1v-2zm-5 3v-3H6v3h4zm-5 0v-3H1v2a1 1 0 001 1h3zm-4-4h4V8H1v3zm0-4h4V4H1v3zm5-3v3h4V4H6zm4 4H6v3h4V8z"/>
+            </svg>
+            Tables
           </button>
           <button class="filter-btn" data-filter="lists" title="Show only lists">
-            <span class="icon">📝</span> Lists
+            <svg class="icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path fill-rule="evenodd" d="M5 11.5a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5zm0-4a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5zm0-4a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5zm-3 1a1 1 0 100-2 1 1 0 000 2zm0 4a1 1 0 100-2 1 1 0 000 2zm0 4a1 1 0 100-2 1 1 0 000 2z"/>
+            </svg>
+            Lists
           </button>
         </div>
         <button class="dashboard-btn" aria-label="Dashboard" title="View Dashboard">
@@ -4961,7 +4987,7 @@ const IntegrationMarkdownFormatter = {
 
     // Add canvas marker
     if (message.isCanvas) {
-      md += `📋 **Canvas**: ${message.canvasTitle || 'Untitled'} (${message.canvasType || 'document'})\n\n`;
+      md += `**Canvas**: ${message.canvasTitle || 'Untitled'} (${message.canvasType || 'document'})\n\n`;
     }
 
     // Add attachment marker
@@ -5242,7 +5268,6 @@ const NotionBlocksConverter = {
   _messageToBlocks(message, index) {
     const blocks = [];
     const role = message.role === 'user' ? 'User' : 'Assistant';
-    const emoji = message.role === 'user' ? '👤' : '🤖';
 
     // Message header as heading
     blocks.push({
@@ -5251,7 +5276,7 @@ const NotionBlocksConverter = {
       heading_2: {
         rich_text: [{
           type: 'text',
-          text: { content: `${emoji} Message ${index + 1}: ${role}` },
+          text: { content: `Message ${index + 1}: ${role}` },
           annotations: { bold: true }
         }]
       }
@@ -5282,7 +5307,7 @@ const NotionBlocksConverter = {
             type: 'text',
             text: { content: `Canvas: ${message.canvasTitle || 'Untitled'} (${message.canvasType || 'document'})` }
           }],
-          icon: { emoji: '📋' }
+          color: 'blue_background'
         }
       });
     }
@@ -6018,7 +6043,7 @@ const ExportManager = {
     const filename = this.generateFilename(harvest, exportFormat);
     
     Utils.downloadFile(filename, content, this.getMimeType(exportFormat));
-    NotificationManager.showToast(`✅ Exported as ${filename}`);
+    NotificationManager.showToast(`Exported as ${filename}`);
     
     if (!format) {
       PanelManager.close();
@@ -6031,7 +6056,7 @@ const ExportManager = {
     
     try {
       await navigator.clipboard.writeText(content);
-      NotificationManager.showToast('✅ Copied to clipboard');
+      NotificationManager.showToast('Copied to clipboard');
     } catch (err) {
       console.error('[ChatGPT Export] Copy failed:', err);
       NotificationManager.showToast('Failed to copy', 'error');
@@ -6121,7 +6146,7 @@ const ExportManager = {
 
       // Add canvas marker (before content, only for assistant)
       if (hasCanvas && msg.role === 'assistant') {
-        md += `📋 **Canvas Artifact**: ${msg.canvasTitle}`;
+        md += `**Canvas Artifact**: ${msg.canvasTitle}`;
         if (msg.canvasType && msg.canvasType !== 'unknown') {
           md += ` (${msg.canvasType})`;
         }
@@ -6371,16 +6396,16 @@ const ExportManager = {
     // File attachment marker (user messages only)
     if (msg.hasAttachment && msg.role === 'user') {
       const icons = {
-        image: '🖼️',
-        pdf: '📄',
-        archive: '📦',
-        document: '📝',
-        code: '💻',
-        file: '📎'
+        image: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6.002 5.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M2.002 1a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V3a2 2 0 00-2-2h-12zm12 1a1 1 0 011 1v6.5l-3.777-1.947a.5.5 0 00-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 00-.63.062L1.002 12V3a1 1 0 011-1h12z"/></svg>',
+        pdf: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4.707A1 1 0 0013.707 4L10 .293A1 1 0 009.293 0H4z"/><path d="M5.5 7a.5.5 0 000 1h1a.5.5 0 000-1h-1zM5 9.5a.5.5 0 01.5-.5h1a.5.5 0 010 1h-1a.5.5 0 01-.5-.5zm0 2a.5.5 0 01.5-.5h1a.5.5 0 010 1h-1a.5.5 0 01-.5-.5z"/></svg>',
+        archive: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1v7.5a2.5 2.5 0 01-2.5 2.5h-9A2.5 2.5 0 011 12.5V5a1 1 0 01-1-1V2zm2 3v7.5A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V5H2zm13-3H1v2h14V2zM5 7.5a.5.5 0 01.5-.5h5a.5.5 0 010 1h-5a.5.5 0 01-.5-.5z"/></svg>',
+        document: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4.707A1 1 0 0013.707 4L10 .293A1 1 0 009.293 0H4zm0 1h5v2A1.5 1.5 0 0010.5 4.5h2V14a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z"/></svg>',
+        code: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.854 4.854a.5.5 0 10-.708-.708l-3.5 3.5a.5.5 0 000 .708l3.5 3.5a.5.5 0 00.708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 01.708-.708l3.5 3.5a.5.5 0 010 .708l-3.5 3.5a.5.5 0 01-.708-.708L13.293 8l-3.147-3.146z"/></svg>',
+        file: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3a2.5 2.5 0 015 0v9a1.5 1.5 0 01-3 0V5a.5.5 0 011 0v7a.5.5 0 001 0V3a1.5 1.5 0 10-3 0v9a2.5 2.5 0 005 0V5a.5.5 0 011 0v7a3.5 3.5 0 11-7 0V3z"/></svg>'
       };
-      const icon = icons[msg.attachment.category] || '📎';
+      const icon = icons[msg.attachment.category] || icons.file;
       metadataHtml += `<div class="file-attachment">
-        <span>${icon}</span>
+        <span style="vertical-align: middle;">${icon}</span>
         <div>
           <strong>Attached:</strong> ${Utils.escapeHtml(msg.attachment.fileName)}
           ${msg.attachment.fileType ? `<span class="file-type">(${Utils.escapeHtml(msg.attachment.fileType)})</span>` : ''}
@@ -6391,7 +6416,7 @@ const ExportManager = {
     // Canvas artifact marker (assistant messages only)
     if (msg.isCanvas && msg.role === 'assistant') {
       metadataHtml += `<div class="canvas-marker">
-        📋 <strong>Canvas Artifact:</strong> ${Utils.escapeHtml(msg.canvasTitle)}
+        <strong>Canvas Artifact:</strong> ${Utils.escapeHtml(msg.canvasTitle)}
         ${msg.canvasType && msg.canvasType !== 'unknown' ? `<span style="font-size: 12px; color: #1e40af;">(${msg.canvasType})</span>` : ''}
       </div>`;
     }
@@ -6993,7 +7018,7 @@ const DashboardGenerator = {
 <body>
   <div class="container">
     <div class="header">
-      <h1>📊 Conversation Dashboard</h1>
+      <h1>Conversation Dashboard</h1>
       <div class="subtitle">${Utils.escapeHTML(meta.title)}</div>
       <div class="meta">
         <strong>Model:</strong> ${Utils.escapeHTML(stats.overview.model)} |
@@ -7003,7 +7028,7 @@ const DashboardGenerator = {
 
     <!-- Overview Section -->
     <div class="section">
-      <h2 class="section-title"><span class="icon">💬</span> Conversation Overview</h2>
+      <h2 class="section-title">Conversation Overview</h2>
       <div class="grid">
         <div class="card">
           <div class="card-title">Total Messages</div>
@@ -7025,7 +7050,7 @@ const DashboardGenerator = {
 
     <!-- Content Statistics -->
     <div class="section">
-      <h2 class="section-title"><span class="icon">📝</span> Content Statistics</h2>
+      <h2 class="section-title">Content Statistics</h2>
       <div class="chart-container">
         <div class="chart-title">Word Count Comparison</div>
         <div class="bar-chart">
@@ -7089,7 +7114,7 @@ const DashboardGenerator = {
     ${stats.content.codeBlocks > 0 ? `
     <!-- Code Languages -->
     <div class="section">
-      <h2 class="section-title"><span class="icon">💻</span> Code Languages</h2>
+      <h2 class="section-title">Code Languages</h2>
       <div class="chart-container">
         <div class="languages-list">
           ${Object.entries(stats.codeLanguages)
@@ -7108,7 +7133,7 @@ const DashboardGenerator = {
     ${stats.thinking.instances > 0 ? `
     <!-- Thinking State Analysis -->
     <div class="section">
-      <h2 class="section-title"><span class="icon">🧠</span> Thinking State Analysis</h2>
+      <h2 class="section-title">Thinking State Analysis</h2>
       <div class="grid">
         <div class="card">
           <div class="card-title">Thinking Instances</div>
@@ -7139,7 +7164,7 @@ const DashboardGenerator = {
     ${stats.canvas.total > 0 ? `
     <!-- Canvas Artifacts -->
     <div class="section">
-      <h2 class="section-title"><span class="icon">📋</span> Canvas Artifacts</h2>
+      <h2 class="section-title">Canvas Artifacts</h2>
       <div class="grid">
         <div class="card">
           <div class="card-title">Total Artifacts</div>
@@ -7173,31 +7198,31 @@ const DashboardGenerator = {
         ${stats.attachments.byType.image > 0 ? `
         <div class="card">
           <div class="card-title">Images</div>
-          <div class="card-value">🖼️ ${stats.attachments.byType.image}</div>
+          <div class="card-value">${stats.attachments.byType.image}</div>
         </div>
         ` : ''}
         ${stats.attachments.byType.pdf > 0 ? `
         <div class="card">
           <div class="card-title">PDFs</div>
-          <div class="card-value">📄 ${stats.attachments.byType.pdf}</div>
+          <div class="card-value">${stats.attachments.byType.pdf}</div>
         </div>
         ` : ''}
         ${stats.attachments.byType.archive > 0 ? `
         <div class="card">
           <div class="card-title">Archives</div>
-          <div class="card-value">📦 ${stats.attachments.byType.archive}</div>
+          <div class="card-value">${stats.attachments.byType.archive}</div>
         </div>
         ` : ''}
         ${stats.attachments.byType.document > 0 ? `
         <div class="card">
           <div class="card-title">Documents</div>
-          <div class="card-value">📝 ${stats.attachments.byType.document}</div>
+          <div class="card-value">${stats.attachments.byType.document}</div>
         </div>
         ` : ''}
         ${stats.attachments.byType.code > 0 ? `
         <div class="card">
           <div class="card-title">Code Files</div>
-          <div class="card-value">💻 ${stats.attachments.byType.code}</div>
+          <div class="card-value">${stats.attachments.byType.code}</div>
         </div>
         ` : ''}
       </div>
@@ -7213,7 +7238,7 @@ const DashboardGenerator = {
           ${stats.timeline.map((item, idx) => {
             const maxWords = Math.max(...stats.timeline.map(t => t.words));
             const height = maxWords > 0 ? Math.max(20, (item.words / maxWords) * 100) : 20;
-            const title = `Message ${idx + 1}: ${item.role} (${item.words} words)${item.hasCode ? ' 💻' : ''}${item.hasThinking ? ' 🧠' : ''}`;
+            const title = `Message ${idx + 1}: ${item.role} (${item.words} words)${item.hasCode ? ' [code]' : ''}${item.hasThinking ? ' [thinking]' : ''}`;
             return `<div class="timeline-bar ${item.role}" style="height: ${height}%" title="${title}"></div>`;
           }).join('')}
         </div>
@@ -8703,14 +8728,14 @@ const ContextMenu = {
       if (action === 'copy-answer') {
         const content = await this.extractSingleMessage(messageEl, 'markdown');
         await navigator.clipboard.writeText(content);
-        NotificationManager.showToast('✅ Copied to clipboard');
+        NotificationManager.showToast('Copied to clipboard');
       } else if (action.startsWith('export-')) {
         const format = action.replace('export-', '');
         const content = await this.extractSingleMessage(messageEl, format);
         const filename = `ChatGPT_Answer_${new Date().toISOString().substring(0, 19).replace(/[:.]/g, '-')}.${format === 'markdown' ? 'md' : format}`;
         
         Utils.downloadFile(filename, content, ExportManager.getMimeType(format));
-        NotificationManager.showToast(`✅ Exported answer as ${format.toUpperCase()}`);
+        NotificationManager.showToast(`Exported answer as ${format.toUpperCase()}`);
       }
     });
 
