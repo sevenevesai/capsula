@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Capsula",
   "short_name": "Capsula",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Save & export your AI conversations.",
   "icons": {
     "16": "icons/16.png",
@@ -11,6 +11,10 @@
     "96": "icons/96.png",
     "128": "icons/128.png"
   },
+  "developer": {
+    "name": "Seveneves AI",
+    "url": "https://seveneves.ai"
+  },
   "homepage_url": "https://seveneves.ai/capsula",
   "content_scripts": [
     {
@@ -18,10 +22,19 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
       ],
-      "js": [
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "permissions": [
+    "clipboardWrite",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "https://api.github.com/*",
+    "https://api.notion.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
