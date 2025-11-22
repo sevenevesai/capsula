@@ -265,7 +265,7 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Technical Details
-- **Version:** 1.2.0
+- **Version:** 1.3.0
 - **Platform:** Firefox (Manifest V3)
 - **Implementation:** Content script + background broker for API requests
 - **Dependencies:** None (self-contained)
@@ -330,17 +330,19 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### Unreleased (Next Version)
+### v1.3.0 (Latest)
+- **Interactive Tutorial System**: Versioned, context-based help for first-time users
 - **Enhanced Timeline with Multi-Selection**: Ctrl+Click, Shift+Click, Ctrl+Drag for advanced message selection
 - **Interactive Message Toggles**: Checkbox on each message to include/exclude from export
-- **Smart Message Visibility**: Excluded messages shown greyed-out instead of hidden
-- Auto-collapse excluded messages with click-to-expand
+- **Smart Message Visibility**: Excluded messages shown greyed-out instead of hidden with auto-collapse
+- **Modern SVG Icon System**: Professional SVG icons replace all emojis for cleaner, more accessible interface
 - Bidirectional sync between timeline and preview toggles
 - Non-contiguous selections for complex filtering needs
 - Preserved message alignment (user right, assistant left)
 - Improved UX with multiple selection methods (no keyboard shortcuts required)
+- Better cross-platform compatibility and consistent styling
 
-### v1.2.0 (Latest)
+### v1.2.0
 - **GitHub Integration:** Export conversations directly to GitHub Gists or Issues
 - **Notion Integration:** Create Notion pages with rich block formatting
 - Automatic content chunking for large conversations (Notion: 100 blocks/request)

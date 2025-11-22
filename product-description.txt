@@ -1,0 +1,33 @@
+Export and organize your ChatGPT conversations - cleanly, privately, and on your terms.
+
+### Key Features
+
+* **Multiple export formats**: Markdown, HTML, JSON, and interactive dashboards
+* **Integrations**: Send chats directly to **GitHub Gists** or **Notion** pages
+* **Advanced selection**: Multi-select messages with Ctrl+Click, Shift+Click, or Ctrl+Drag. Toggle messages with checkboxes. Non-contiguous selections supported.
+* **Smart visibility**: Excluded messages shown greyed-out instead of hidden. Auto-collapse with click-to-expand for easy review.
+* **Interactive tutorials**: Context-based help for first-time users. Versioned tutorials guide you through features.
+* **Content filtering**: Choose message ranges or content types (assistant only, code, tables, lists)
+* **Rich formatting**: Preserves headings, lists, code blocks, quotes, links, and syntax highlighting
+* **Analytics**: Optional dashboard view with message stats, language detection, and "thinking" time insights
+* **Modern design**: Professional SVG icons with automatic light/dark mode adaptation for better accessibility
+
+### Privacy & Security
+
+* All processing happens **locally in your browser**
+* **No telemetry, no tracking, no external servers**
+* Tokens for GitHub and Notion are encrypted and stored only on your device
+
+### Smart Integrations
+
+* GitHub Gist export with progress tracking, auto file splitting, and retry logic
+* Notion export with block-based formatting and automatic chunking for large conversations
+* All selection and filtering features work seamlessly with integrations
+* Test connections, validate tokens, and manage integrations easily in Settings
+
+### Technical Highlights
+
+* Firefox Manifest V3 compliant
+* Background request handling to respect Content Security Policy
+* Zero external dependencies
+* Minimal permissions — requested only when needed

@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### ✨ Enhancements
+---
 
-#### Tutorial System
+## [1.3.0] - 2025-11-22
+
+### Major New Features
+
+#### Interactive Tutorial System
 - **Versioned Tutorial Nudges**: Context-based help for first-time users
   - Tutorial state stored in browser.storage.local (survives domain shifts)
   - Versioned tutorial keys (e.g., `github_modal:v1`, `notion_modal:v1`)
@@ -19,8 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Non-intrusive 2-step guides shown when opening GitHub/Notion modals
   - Users can dismiss tutorials with "Got it!" or "Don't show again"
   - Reset option in Settings > Help & Tutorials
-
-### 🎉 Major New Features
 
 #### Enhanced Timeline with Multi-Selection
 - **Multi-Selection Support**: Advanced message selection with keyboard modifiers
@@ -48,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - "(Not in export)" labels for clarity
   - Expand/collapse hints with intuitive icons
 
-### ✨ Enhancements
+### Enhancements
 
 - **Better UX for Message Selection**:
   - All messages remain visible regardless of selection state
@@ -78,8 +80,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expand/collapse hints positioned correctly for each message role
 - Click handlers properly isolated (toggle vs expand/collapse)
 
-### 🎨 UI/UX
+### UI/UX
 
+#### Modern SVG Icon System
+- **Complete emoji replacement with professional SVG icons**:
+  - Filter buttons (Assistant, Code, Tables, Lists) use clean SVG icons
+  - Tutorial titles are text-only for clarity
+  - Dashboard uses SVG icon instead of emoji
+  - Section headers and stats cards use text labels
+  - File attachments show category-specific SVG icons
+  - Code and thinking indicators now use text tags ([code], [thinking])
+  - Success notifications use text-based feedback
+  - Notion page/database selectors use SVG icons
+  - All icons use 'currentColor' for automatic light/dark mode adaptation
+- **Benefits**:
+  - Professional, modern appearance across all UI elements
+  - Consistent icon styling throughout the extension
+  - Better accessibility and cross-platform compatibility
+  - Cleaner interface without visual clutter
+  - Perfect rendering at all sizes and resolutions
+
+#### Enhanced Interactions
 - New checkbox toggles in message role labels
 - Hover effects on timeline segments and toggle buttons
 - Visual state feedback for selected/unselected messages
@@ -87,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smooth scale animations on hover (110%)
 - Color-coded checkmarks (green for included)
 
-### 📚 Technical
+### Technical
 
 - Set-based selection model for O(1) lookups
 - `MessageFilter.apply()` for preview (shows all with metadata)
