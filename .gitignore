@@ -10,6 +10,16 @@ ehthumbs.db
 desktop.ini
 $RECYCLE.BIN/
 
+# Test files and POC artifacts
+examples/
+claude-poc-test/
+debug-*.js
+debug-*.txt
+*-poc.js
+POC-*.md
+CLAUDE-POC-README.md
+claude-conversation-*.md
+
 # VS Code / Visual Studio / IDE
 .vscode/*
 !.vscode/settings.json
