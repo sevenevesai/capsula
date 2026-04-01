@@ -10,6 +10,9 @@ ehthumbs.db
 desktop.ini
 $RECYCLE.BIN/
 
+# Build output
+dist/
+
 # VS Code / Visual Studio / IDE
 .vscode/*
 !.vscode/settings.json

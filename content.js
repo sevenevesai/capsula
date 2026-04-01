@@ -1,7 +1,10 @@
+/* Browser API compatibility: Firefox uses `browser`, Chrome uses `chrome` */
+const browser = globalThis.browser || globalThis.chrome;
+
 /**
  * ChatGPT Export Extension v3.3.0 - Enhanced Production Release
- * 
- * A Firefox extension for exporting ChatGPT conversations with improved
+ *
+ * A browser extension for exporting ChatGPT conversations with improved
  * model detection, thinking state capture, media handling, and settings.
  * 
  * @author Mark T. Short (seveneves.ai)
