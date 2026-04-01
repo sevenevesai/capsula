@@ -14,6 +14,10 @@ $RECYCLE.BIN/
 dist/
 *.zip
 
+# Claude Code
+.claude/
+CLAUDE.md
+
 # VS Code / Visual Studio / IDE
 .vscode/*
 !.vscode/settings.json
