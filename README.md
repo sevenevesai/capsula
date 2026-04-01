@@ -1,7 +1,7 @@
 # Capsula
 
-**Capsula** is a Firefox extension that lets you **save and export AI conversations** into multiple formats.  
-It works directly inside ChatGPT (and later, other AI platforms) with advanced filtering, range selection, and privacy-focused design.
+**Capsula** is a browser extension for **Firefox** and **Chrome/Edge** that lets you **save and export AI conversations** into multiple formats.
+It works directly inside ChatGPT with advanced filtering, range selection, and privacy-focused design.
 
 ---
 
@@ -108,13 +108,20 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 
 ---
 
-## Installation (Temporary Testing)
-1. Download or clone this repository  
-2. Open Firefox and go to `about:debugging`  
-3. Click **This Firefox** → **Load Temporary Add-on**  
-4. Select the `manifest.json` file  
+## Installation
 
-*(AMO Store version coming soon)*
+### Firefox
+1. Download or clone this repository
+2. Open Firefox and go to `about:debugging`
+3. Click **This Firefox** → **Load Temporary Add-on**
+4. Select `manifest-firefox.json`
+
+### Chrome / Edge
+1. Download or clone this repository
+2. Run `node build.js chrome` to build the Chrome package
+3. Open Chrome and go to `chrome://extensions`
+4. Enable **Developer mode** (top-right toggle)
+5. Click **Load unpacked** and select the `dist/chrome/` folder
 
 ---
 
@@ -266,9 +273,10 @@ Export conversations directly to Notion as pages with rich formatting.
 
 ## Technical Details
 - **Version:** 1.3.0
-- **Platform:** Firefox (Manifest V3)
+- **Browsers:** Firefox 109+, Chrome 116+, Edge 116+
 - **Implementation:** Content script + background broker for API requests
 - **Dependencies:** None (self-contained)
+- **Build:** `node build.js [firefox|chrome] [--zip]`
 - **Font:** Matches ChatGPT's font stack automatically
 - **Code Detection:** Supports 20+ programming languages
 - **Metadata:** Thinking states, canvas artifacts, file attachments
@@ -286,12 +294,15 @@ Export conversations directly to Notion as pages with rich formatting.
 
 ## File Structure
 capsula/
-├── manifest.json # Extension manifest
-├── content.js # Main content script
-├── README.md # This file
-├── PRIVACY.md # Privacy policy
-├── LICENSE # License file
-└── icons/ # Extension icons
+├── manifest-firefox.json # Firefox manifest
+├── manifest-chrome.json  # Chrome/Edge manifest
+├── content.js            # Main content script (shared)
+├── background.js         # API request broker (shared)
+├── build.js              # Build/packaging script
+├── README.md             # This file
+├── PRIVACY.md            # Privacy policy
+├── LICENSE               # License file
+└── icons/                # Extension icons
     ├── 16.png
     ├── 32.png
     ├── 48.png
@@ -307,8 +318,8 @@ We welcome feedback, bug reports, and feature requests to help improve the exten
 Please reach out via [support@seveneves.ai](mailto:support@seveneves.ai) or visit [seveneves.ai/capsula](https://seveneves.ai/capsula).
 
 All development follows:
-- Firefox AMO policies and review standards  
-- Security best practices (no remote code, minimal permissions)  
+- Firefox AMO and Chrome Web Store policies and review standards
+- Security best practices (no remote code, minimal permissions)
 - Strong focus on privacy and transparency
 
 ---

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Chrome/Edge support**: Unified codebase now works on Firefox, Chrome, and Edge
+  - Browser API compatibility shim (`browser.*` / `chrome.*`)
+  - Separate manifests: `manifest-firefox.json` and `manifest-chrome.json`
+  - Chrome uses Manifest V3 service worker; Firefox uses background scripts
+  - Minimum Chrome version: 116
+- **Build script**: `node build.js [firefox|chrome] [--zip]` packages the extension for each browser
+  - Zero dependencies (Node.js built-ins only)
+  - Creates `dist/firefox/` and `dist/chrome/` with correct manifest
+  - Optional `--zip` flag for store submission archives
+
+### Removed
+- Old `chrome/` directory with stale v1.0.0 archive (replaced by unified build)
+
 ---
 
 ## [1.3.0] - 2025-11-22
@@ -387,7 +401,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Browser Compatibility
 - **Firefox**: 109.0 or higher (Manifest V3)
-- **Chrome/Edge**: Not yet supported (Firefox-first release)
+- **Chrome**: 116 or higher (Manifest V3)
+- **Edge**: 116 or higher (Chromium-based, uses Chrome build)
 
 ### Known Limitations
 - Only works on ChatGPT (chat.openai.com, chatgpt.com)
@@ -408,11 +423,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### From Firefox Add-ons (Recommended)
 Firefox will automatically update to the latest version.
 
-### Manual Update
+### Manual Update (Firefox)
 1. Download the latest version
 2. Go to `about:debugging` in Firefox
 3. Remove the old version
-4. Load the new `manifest.json`
+4. Load `manifest-firefox.json`
+
+### Manual Update (Chrome/Edge)
+1. Download the latest version
+2. Run `node build.js chrome`
+3. Go to `chrome://extensions`
+4. Remove the old version and load `dist/chrome/`
 
 ---
 
