@@ -79,4 +79,4 @@ Privacy-first. Locally processed. Zero telemetry.
 
 ---
 
-*Copyright © 2025 Seveneves AI. All rights reserved.*
+*Copyright © 2025 Seveneves AI. MIT License.*

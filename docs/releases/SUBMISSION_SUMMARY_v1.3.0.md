@@ -168,7 +168,7 @@ Enhanced Selection, Interactive Tutorials & Modern Icons
 - **Website:** https://seveneves.ai/capsula
 - **Support Email:** support@seveneves.ai
 - **Privacy Policy:** Included in PRIVACY.md
-- **License:** Proprietary (see LICENSE file)
+- **License:** MIT (see LICENSE file)
 
 ---
 

@@ -12,6 +12,7 @@ $RECYCLE.BIN/
 
 # Build output
 dist/
+*.zip
 
 # VS Code / Visual Studio / IDE
 .vscode/*

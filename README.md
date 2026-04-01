@@ -312,9 +312,7 @@ capsula/
 ---
 
 ## Feedback & Support
-Capsula is proprietary software and not open source.  
-
-We welcome feedback, bug reports, and feature requests to help improve the extension.  
+We welcome feedback, bug reports, and feature requests.
 Please reach out via [support@seveneves.ai](mailto:support@seveneves.ai) or visit [seveneves.ai/capsula](https://seveneves.ai/capsula).
 
 All development follows:
@@ -325,9 +323,8 @@ All development follows:
 ---
 
 ## License
-Capsula is proprietary software.  
-Copyright (c) 2025 Seveneves AI. All rights reserved.  
-See the [LICENSE](./LICENSE) file for details.
+MIT License. Copyright (c) 2025 Seveneves AI.
+See [LICENSE](./LICENSE) for details.
 
 ---
 

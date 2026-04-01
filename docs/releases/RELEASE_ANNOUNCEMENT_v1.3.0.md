@@ -268,4 +268,4 @@ Questions? Issues? Ideas? We'd love to hear from you!
 
 ---
 
-*Capsula is proprietary software. Copyright © 2025 Seveneves AI. All rights reserved.*
+*Copyright © 2025 Seveneves AI. MIT License.*

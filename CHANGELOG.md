@@ -445,4 +445,4 @@ For bug reports, feature requests, or support:
 
 ---
 
-**Note:** Capsula is proprietary software. Copyright (c) 2025 Seveneves AI. All rights reserved.
+**Note:** MIT License. Copyright (c) 2025 Seveneves AI.

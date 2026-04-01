@@ -1,16 +1,21 @@
-Capsula Browser Extension
-Copyright (c) 2025 Seveneves AI. All rights reserved.
+MIT License
 
-Permission is granted to install and use this software as a Firefox extension
-in its compiled form, as distributed via addons.mozilla.org or seveneves.ai.
+Copyright (c) 2025 Seveneves AI
 
-All other rights are reserved. Without prior written permission from the author,
-you may not:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-- Copy, modify, or create derivative works of this software
-- Distribute or sublicense the software or make its source code available
-- Reverse engineer, decompile, or attempt to extract the source code
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-This software is provided "as is," without warranty of any kind. In no event
-shall the author be liable for any claim, damages, or other liability arising
-from use of the software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
