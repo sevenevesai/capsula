@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Capsula",
   "short_name": "Capsula",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Save & export your AI conversations.",
   "icons": {
     "16": "icons/16.png",
@@ -21,7 +21,10 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "capsula@seveneves.ai",
-      "strict_min_version": "109.0"
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
 

@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.4.0] - 2026-07-23
+
+### Fixed
+- **Harvester updated for current ChatGPT DOM** (verified against a captured conversation):
+  - Turn containers found via `[data-turn]` and `data-testid="conversation-turn-N"` — the previous primary selectors (`article[data-scroll-anchor]`, exact `conversation-turn`) no longer exist in the page
+  - Code block language read from the card header label; `language-*` classes preserved through sanitization as `data-code-lang`
+  - Mermaid diagrams export as the rendered SVG image instead of a code block containing the literal text "Mermaid"
+  - KaTeX math exports as LaTeX (`$…$` inline, `$$…$$` blocks) from the annotation source instead of triple-rendered/exploded character soup
+  - HTML exports and the preview render math natively (MathML captured from ChatGPT's KaTeX markup, sanitized against an element/attribute allowlist) — equations look like they do in the chat window; markdown still exports the LaTeX source
+  - Inline formatting (bold, italic, strikethrough, inline code, links) preserved in paragraphs, headings, quotes, list items, and table cells
+  - Title detection no longer grabs an `h1` from message content (exports were being named after content headings); prefers the conversation title element, then `document.title`
+- **Markdown output**:
+  - Code fences sized beyond the longest backtick run in the content — code containing ``` no longer breaks the export
+  - Simple tables export as markdown pipe tables (raw HTML kept for colspan/rowspan tables)
+  - Nested lists preserve structure in markdown and HTML exports
+  - Blank lines inside code blocks no longer collapsed
+- Exports no longer drop messages that ChatGPT has virtualized out of the DOM: harvest sweeps the conversation scroller top-to-bottom so lazy-mounted turns render and get collected, then restores the scroll position
+- Auto-expand thinking scoped to conversation turns — no longer clicks sidebar menus or the model switcher
+- Message IDs use ChatGPT's real turn/message identifiers when available (JSON export)
+- Internal `CFG.version` had shipped as a stale `3.3.0` in published 1.x builds (visible in export headers); build now fails if `CFG.version` and the manifests disagree
 
 ### Added
 - **Chrome/Edge support**: Unified codebase now works on Firefox, Chrome, and Edge
@@ -19,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Zero dependencies (Node.js built-ins only)
   - Creates `dist/firefox/` and `dist/chrome/` with correct manifest
   - Optional `--zip` flag for store submission archives
+- Firefox manifest declares no data collection (`data_collection_permissions: { required: ["none"] }`), required by Mozilla's data collection consent framework for all extensions as of 2026
 
 ### Removed
 - Old `chrome/` directory with stale v1.0.0 archive (replaced by unified build)
@@ -425,9 +445,9 @@ Firefox will automatically update to the latest version.
 
 ### Manual Update (Firefox)
 1. Download the latest version
-2. Go to `about:debugging` in Firefox
-3. Remove the old version
-4. Load `manifest-firefox.json`
+2. Run `node build.js firefox`
+3. Go to `about:debugging` in Firefox
+4. Remove the old version and load `dist/firefox/manifest.json`
 
 ### Manual Update (Chrome/Edge)
 1. Download the latest version

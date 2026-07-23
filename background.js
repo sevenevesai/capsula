@@ -175,7 +175,7 @@ async function makeHttpRequest(url, options = {}, attempt = 0) {
     // Handle rate limiting
     if (response.status === 429) {
       const retryAfter = headers['retry-after'];
-      const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : calculateBackoff(attempt);
+      const waitMs = Math.min(retryAfter ? parseInt(retryAfter) * 1000 : calculateBackoff(attempt), 60000);
 
       if (attempt < MAX_RETRIES) {
         await sleep(waitMs);
@@ -270,6 +270,9 @@ browser.runtime.onMessage.addListener(async (msg, sender) => {
 
       // Token operations
       case 'TOKEN_SET': {
+        if (!['github', 'notion'].includes(msg.service)) {
+          return { ok: false, error: { code: 'VALIDATION', message: 'Invalid service name' } };
+        }
         try {
           const key = `capsula_token_${msg.service}`;
           const value = msg.tokenCiphertext || msg.tokenPlain || '';
@@ -281,6 +284,9 @@ browser.runtime.onMessage.addListener(async (msg, sender) => {
       }
 
       case 'TOKEN_GET': {
+        if (!['github', 'notion'].includes(msg.service)) {
+          return { ok: false, error: { code: 'VALIDATION', message: 'Invalid service name' } };
+        }
         try {
           const key = `capsula_token_${msg.service}`;
           const result = await browser.storage.local.get(key);
@@ -291,6 +297,9 @@ browser.runtime.onMessage.addListener(async (msg, sender) => {
       }
 
       case 'TOKEN_CLEAR': {
+        if (!['github', 'notion'].includes(msg.service)) {
+          return { ok: false, error: { code: 'VALIDATION', message: 'Invalid service name' } };
+        }
         try {
           const key = `capsula_token_${msg.service}`;
           await browser.storage.local.remove(key);

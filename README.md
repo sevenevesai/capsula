@@ -112,9 +112,10 @@ See [PRIVACY.md](./PRIVACY.md) for details.
 
 ### Firefox
 1. Download or clone this repository
-2. Open Firefox and go to `about:debugging`
-3. Click **This Firefox** → **Load Temporary Add-on**
-4. Select `manifest-firefox.json`
+2. Run `node build.js firefox` to build the Firefox package
+3. Open Firefox and go to `about:debugging`
+4. Click **This Firefox** → **Load Temporary Add-on**
+5. Select `dist/firefox/manifest.json`
 
 ### Chrome / Edge
 1. Download or clone this repository
@@ -272,7 +273,7 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Technical Details
-- **Version:** 1.3.0
+- **Version:** 1.4.0
 - **Browsers:** Firefox 109+, Chrome 116+, Edge 116+
 - **Implementation:** Content script + background broker for API requests
 - **Dependencies:** None (self-contained)
@@ -294,9 +295,9 @@ Export conversations directly to Notion as pages with rich formatting.
 
 ## File Structure
 capsula/
+├── src/content/          # Content script source modules (built into content.js)
 ├── manifest-firefox.json # Firefox manifest
 ├── manifest-chrome.json  # Chrome/Edge manifest
-├── content.js            # Main content script (shared)
 ├── background.js         # API request broker (shared)
 ├── build.js              # Build/packaging script
 ├── README.md             # This file
@@ -338,7 +339,16 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### v1.3.0 (Latest)
+### v1.4.0 (Latest)
+- **Chrome/Edge support**: unified codebase now ships for Firefox, Chrome, and Edge
+- **Harvester rebuilt for the current ChatGPT DOM**: turn detection, code block language labels, inline formatting (bold, italic, links, inline code) preserved throughout
+- **Mermaid diagrams** export as rendered SVG; **KaTeX math** exports as LaTeX (`$…$` / `$$…$$`) in markdown and renders natively (MathML) in HTML exports and the preview
+- Virtualized (lazy-loaded) messages no longer dropped — export sweeps the full conversation first
+- Markdown fixes: safe code fences, pipe tables, nested lists, blank lines in code blocks preserved
+- Title detection no longer grabs headings from message content
+- Build script (`node build.js`) with version-consistency check and store zip packaging
+
+### v1.3.0
 - **Interactive Tutorial System**: Versioned, context-based help for first-time users
 - **Enhanced Timeline with Multi-Selection**: Ctrl+Click, Shift+Click, Ctrl+Drag for advanced message selection
 - **Interactive Message Toggles**: Checkbox on each message to include/exclude from export

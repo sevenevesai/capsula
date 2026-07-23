@@ -14,6 +14,9 @@ $RECYCLE.BIN/
 dist/
 *.zip
 
+# Generated content script (source of truth is src/content/*.js)
+content.js
+
 # Screenshots
 ss-*.png
 
