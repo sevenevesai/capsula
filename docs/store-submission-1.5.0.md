@@ -84,5 +84,5 @@ in Settings → Behavior. JSON and integration exports retain URLs.
   warning is the loading overlay template in `HarvestCurtain.show()`. Its progress details use
   `textContent`; template values are layout/theme values. Store reviewers may inspect these
   assignments and compatibility declarations.
-- Live ChatGPT checks in Chrome and Firefox are awaiting confirmation. Complete the checks
-  above before submitting to the stores.
+- Live ChatGPT export checks passed in Chrome and Firefox, including images, the loading
+  overlay, and button dragging, as confirmed by the maintainer on 2026-09-15.
