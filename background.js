@@ -243,6 +243,54 @@ async function makeHttpRequest(url, options = {}, attempt = 0) {
 }
 
 /**
+ * Fetch a binary resource (an image) and return it as a data URL. Used for
+ * export image embedding on hosts the content script cannot reach
+ * cross-origin. Same permission gate as JSON requests.
+ */
+async function fetchAsDataUrl(url, maxBytes) {
+  const origin = new URL(url).origin + '/*';
+  const hasPerm = await browser.permissions.contains({ origins: [origin] });
+  if (!hasPerm) {
+    return {
+      ok: false,
+      error: { code: 'PERMISSION', message: 'Permission required for ' + origin }
+    };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      return { ok: false, error: { code: 'HTTP', message: 'HTTP ' + response.status } };
+    }
+    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
+    if (!contentType.startsWith('image/')) {
+      return { ok: false, error: { code: 'VALIDATION', message: 'Not an image: ' + contentType } };
+    }
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > maxBytes) {
+      return { ok: false, error: { code: 'VALIDATION', message: 'Image exceeds size cap' } };
+    }
+    // Chunked so String.fromCharCode never sees an oversized argument list
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return {
+      ok: true,
+      data: { dataUrl: 'data:' + contentType + ';base64,' + btoa(binary), bytes: buffer.byteLength }
+    };
+  } catch (err) {
+    const code = err.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK';
+    return { ok: false, error: { code, message: err.message } };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Message handler for all broker requests
  */
 browser.runtime.onMessage.addListener(async (msg, sender) => {
@@ -327,6 +375,15 @@ browser.runtime.onMessage.addListener(async (msg, sender) => {
         }
 
         return await makeHttpRequest(url, fetchOptions);
+      }
+
+      // Binary fetch for image embedding
+      case 'HTTP_BLOB': {
+        const { url, maxBytes = 15 * 1024 * 1024 } = msg;
+        if (typeof url !== 'string' || !/^https:\/\//.test(url)) {
+          return { ok: false, error: { code: 'VALIDATION', message: 'Invalid URL' } };
+        }
+        return await fetchAsDataUrl(url, maxBytes);
       }
 
       default:

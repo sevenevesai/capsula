@@ -54,7 +54,8 @@ It works directly inside ChatGPT with advanced filtering, range selection, and p
   - **Range selection** — export just part of a conversation  
 
 ### User Interface
-- Floating export button (bottom-right, with tooltip)  
+- Floating export button: drag to reposition; remembers its position across sessions
+- Loading overlay with progress while the conversation is collected
 - Export panel with live preview  
 - Context menu (right-click any assistant message)  
 - Keyboard shortcuts:  
@@ -63,6 +64,14 @@ It works directly inside ChatGPT with advanced filtering, range selection, and p
 - Auto light/dark theme support  
 
 ### Advanced Features
+- **Faster conversation loading**
+  - Reads ChatGPT's conversation JSON before falling back to a page scroll
+  - Preserves available per-message timestamps, models, and thinking summaries
+- **Embedded images**
+  - Downloads and embeds available images in HTML and Markdown exports and clipboard copies
+  - Successfully embedded images remain available after ChatGPT's image links expire
+  - Enabled by default; turn off in Settings → Behavior
+  - Failed image downloads retain their links; Markdown viewers need data URI support
 - **Enhanced thinking detection**
   - Multi-stage thinking sequences with time tracking
   - Accurate time parsing (handles "5s", "1m 30s", "a few seconds", etc.)
@@ -99,7 +108,7 @@ It works directly inside ChatGPT with advanced filtering, range selection, and p
 ## Security & Privacy
 - All processing happens locally in your browser  
 - **No remote code, no telemetry, no tracking**  
-- **Minimal permissions** (only clipboard write, if used)  
+- **Minimal permissions**: clipboard write, local settings storage, supported chat sites, and optional hosts for integrations and image downloads
 - Exported HTML files include a **strict Content Security Policy (CSP)**  
 - **XSS prevention** and **URL sanitization** built in  
 - Extension UI isolated with **Shadow DOM**  
@@ -249,10 +258,11 @@ Export conversations directly to Notion as pages with rich formatting.
 - Thinking labels included
 
 ### Privacy & Permissions
-- Tokens stored locally in browser storage (never transmitted to third parties)
+- Integration tokens stored locally and sent only to the selected service
 - Optional encryption for tokens (Web Crypto API)
-- Host permissions requested only when first using an integration
-- All API calls made directly from your browser to GitHub/Notion
+- Integration host permissions requested when you enable an integration
+- Embedding images in exports may ask once for access to ChatGPT's image hosts (`*.oaiusercontent.com`, Azure blob storage); decline and exports keep the original image links
+- Integration API calls made directly from your browser to GitHub/Notion
 - No Capsula servers involved
 - Tokens can be cleared anytime in settings
 
@@ -273,11 +283,12 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Technical Details
-- **Version:** 1.4.0
+- **Version:** 1.5.0
 - **Browsers:** Firefox 109+, Chrome 116+, Edge 116+
 - **Implementation:** Content script + background broker for API requests
-- **Dependencies:** None (self-contained)
+- **Dependencies:** None in the extension; `jsdom` is a dev dependency for the fixture tests only
 - **Build:** `node build.js [firefox|chrome] [--zip]`
+- **Tests:** `npm install` once, then `npm test` runs captured ChatGPT DOM and conversation-JSON fixtures through the export pipeline and diffs against `test/golden/`
 - **Font:** Matches ChatGPT's font stack automatically
 - **Code Detection:** Supports 20+ programming languages
 - **Metadata:** Thinking states, canvas artifacts, file attachments
@@ -286,10 +297,11 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Privacy
-- No analytics, no telemetry  
-- No external API calls  
-- Clipboard access only when explicitly used  
-- All data stays on your device  
+- No analytics, no telemetry
+- Conversation data is read from the page and from ChatGPT's own same-origin conversation API (the same requests the page makes), using the session you are already signed in with
+- Network requests beyond chatgpt.com happen only for features you enable: GitHub, Notion, and embedding images from ChatGPT's image hosts
+- Clipboard access only when explicitly used
+- Exports stay on your device unless you choose to send them to GitHub or Notion
 
 ---
 
@@ -300,6 +312,7 @@ capsula/
 ├── manifest-chrome.json  # Chrome/Edge manifest
 ├── background.js         # API request broker (shared)
 ├── build.js              # Build/packaging script
+├── test/                 # Fixture regression suite (npm test)
 ├── README.md             # This file
 ├── PRIVACY.md            # Privacy policy
 ├── LICENSE               # License file
@@ -339,7 +352,16 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### v1.4.0 (Latest)
+### v1.5.0 (Latest)
+- Faster exports through ChatGPT's conversation JSON, with a DOM fallback
+- Better capture of available thinking summaries, timing labels, timestamps, and model information
+- Available images embedded in HTML/Markdown downloads and copies so saved images outlast expiring links
+- Conversation loading overlay with progress and message counts
+- Draggable export button with a saved position and a reset-to-corner setting
+- Fixed panels disappearing after reopening or harmless URL changes
+- Eight captured DOM/JSON fixtures to catch extraction regressions
+
+### v1.4.0
 - **Chrome/Edge support**: unified codebase now ships for Firefox, Chrome, and Edge
 - **Harvester rebuilt for the current ChatGPT DOM**: turn detection, code block language labels, inline formatting (bold, italic, links, inline code) preserved throughout
 - **Mermaid diagrams** export as rendered SVG; **KaTeX math** exports as LaTeX (`$…$` / `$$…$$`) in markdown and renders natively (MathML) in HTML exports and the preview

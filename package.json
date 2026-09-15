@@ -1,0 +1,13 @@
+{
+  "name": "capsula",
+  "private": true,
+  "description": "Browser extension for exporting ChatGPT conversations. The extension itself has no dependencies; jsdom is only for the fixture tests.",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node build.js firefox && node test/run-fixtures.js",
+    "test:update": "node build.js firefox && node test/run-fixtures.js --update"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

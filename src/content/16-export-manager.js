@@ -4,7 +4,8 @@
 const ExportManager = {
   async export(harvest, format = null) {
     const exportFormat = format || globalState.exportFormat;
-    const content = this.generateContent(harvest, exportFormat);
+    const source = await this.withEmbeddedImages(harvest, exportFormat);
+    const content = this.generateContent(source, exportFormat);
     const filename = this.generateFilename(harvest, exportFormat);
     
     Utils.downloadFile(filename, content, this.getMimeType(exportFormat));
@@ -17,7 +18,8 @@ const ExportManager = {
 
   async copy(harvest, format = null) {
     const exportFormat = format || globalState.exportFormat;
-    const content = this.generateContent(harvest, exportFormat);
+    const source = await this.withEmbeddedImages(harvest, exportFormat);
+    const content = this.generateContent(source, exportFormat);
     
     try {
       await navigator.clipboard.writeText(content);
@@ -25,6 +27,29 @@ const ExportManager = {
     } catch (err) {
       console.error('[ChatGPT Export] Copy failed:', err);
       NotificationManager.showToast('Failed to copy', 'error');
+    }
+  },
+
+  // HTML and Markdown downloads and copies embed images when the setting is
+  // on. JSON keeps URLs, and the integrations are untouched: GitHub strips
+  // data URIs from rendered markdown and Notion only accepts external URLs.
+  async withEmbeddedImages(harvest, format) {
+    if (!globalState.settings.current.embedImages) return harvest;
+    if (format !== 'html' && format !== 'markdown') return harvest;
+    try {
+      const result = await ImageEmbedder.embed(harvest, count => {
+        NotificationManager.showToast(`Embedding ${count} image${count === 1 ? '' : 's'}...`, 'info');
+      });
+      if (result.failed) {
+        NotificationManager.showToast(
+          `${result.failed} image${result.failed === 1 ? '' : 's'} could not be embedded and keep${result.failed === 1 ? 's' : ''} the original link`,
+          'error'
+        );
+      }
+      return result.harvest;
+    } catch (err) {
+      console.error('[ChatGPT Export] Image embedding failed:', err);
+      return harvest;
     }
   },
 

@@ -69,15 +69,17 @@ const Utils = {
    =========================== */
 const PanelManager = {
   open(harvest) {
-    if (panelHost && document.contains(panelHost)) {
-      this.close();
-    }
-    
-    panelHost = ExportPanel.create(harvest);
-    document.body.appendChild(panelHost);
+    if (panelHost) this.close();
 
+    const host = ExportPanel.create(harvest);
+    panelHost = host;
+    document.body.appendChild(host);
+
+    // Deferred work is bound to this host: a close in the meantime must not
+    // act on a newer panel
     setTimeout(() => {
-      const shadow = panelHost.shadowRoot;
+      if (panelHost !== host || !host.isConnected) return;
+      const shadow = host.shadowRoot;
       const firstFocusable = shadow.querySelector('button, select');
       if (firstFocusable) firstFocusable.focus();
 
@@ -86,30 +88,27 @@ const PanelManager = {
 
       // Trigger welcome tutorial after a short delay to let panel settle
       setTimeout(() => {
-        tutorialManager.startFlow('welcome');
+        if (panelHost === host) tutorialManager.startFlow('welcome');
       }, 500);
     }, 100);
   },
 
   close() {
-    if (panelHost) {
-      ChatRenderer.destroy();
-      Timeline.cleanupAll();
-
-      // End any active tutorial
-      if (tutorialManager.isActive()) {
-        tutorialManager.endFlow(true);
-      }
-
-      panelHost.style.animation = 'fadeOut 0.2s ease';
-      setTimeout(() => {
-        if (panelHost?.parentNode) {
-          panelHost.parentNode.removeChild(panelHost);
-        }
-        panelHost = null;
-        globalState.reset();
-      }, 200);
+    const host = panelHost;
+    if (!host) return;
+    // State is released synchronously so an open() during the fade-out starts
+    // clean; only the visual removal is deferred, and only for this host
+    panelHost = null;
+    ChatRenderer.destroy();
+    Timeline.cleanupAll();
+    if (tutorialManager.isActive()) {
+      tutorialManager.endFlow(true);
     }
+    globalState.reset();
+
+    host.style.pointerEvents = 'none';
+    host.style.animation = 'fadeOut 0.2s ease';
+    setTimeout(() => host.remove(), 200);
   }
 };
 
@@ -367,7 +366,13 @@ const OverlayManager = {
   mount() {
     if (overlayHost && document.contains(overlayHost)) return;
     
-    overlayHost = ExportButton.create(() => App.openExportPanel());
+    overlayHost = ExportButton.create(
+      () => App.openExportPanel(),
+      (position) => {
+        globalState.settings.save({ buttonPosition: position });
+        this.recomputePosition();
+      }
+    );
     document.documentElement.appendChild(overlayHost);
     
     requestAnimationFrame(() => {
@@ -388,8 +393,13 @@ const OverlayManager = {
   },
 
   recomputePosition() {
-    if (!overlayHost) return;
-    
+    if (!overlayHost || overlayHost.isDragging) return;
+
+    // A user-placed button is only clamped to the viewport, never nudged
+    const custom = globalState.settings.current.buttonPosition;
+    ExportButton.applyPosition(overlayHost, custom);
+    if (custom) return;
+
     let bottomPx = CFG.bottom;
     const composer = this.findComposer();
     
@@ -468,14 +478,20 @@ const App = {
       overlayHost.setLoading(true);
     }
 
-    // Show processing notification
-    NotificationManager.showToast('Processing conversation...', 'info');
-
     try {
       const harvest = await Harvester.harvest();
 
       if (!harvest.messages || harvest.messages.length === 0) {
-        NotificationManager.showToast('No messages found to export', 'error');
+        // No turn container matched at all means the page markup changed,
+        // which is a different problem from an empty conversation
+        const layoutChanged = !Harvester.lastTurnStrategy;
+        console.warn('[ChatGPT Export] Empty harvest; turn selector tier:', Harvester.lastTurnStrategy);
+        NotificationManager.showToast(
+          layoutChanged
+            ? 'No conversation found. ChatGPT may have changed its layout; Capsula needs an update.'
+            : 'No messages found to export',
+          'error'
+        );
         return;
       }
 
@@ -523,18 +539,30 @@ const App = {
   },
 
   setupRouteWatcher() {
-    let lastHref = location.href;
+    // A route is the conversation, not the full URL: query and hash changes,
+    // and a new chat acquiring its /c/<id>, keep the open panel valid
+    const conversationId = () => ConversationApi.conversationIdFromUrl(location.href);
+    const routeKey = () => conversationId() || location.pathname;
+    let lastKey = routeKey();
+    let lastHadId = !!conversationId();
     
     const handleNav = () => {
-      if (location.href !== lastHref) {
-        lastHref = location.href;
-        PanelManager.close();
-        
-        if (CFG.urlGuard.test(location.href)) {
-          OverlayManager.mount();
-        } else {
-          OverlayManager.unmount();
-        }
+      const key = routeKey();
+      if (key === lastKey) return;
+      const wasNewChat = !lastHadId && /^\/(?:g\/[^/]+\/?)?$/.test(lastKey);
+      const hasId = !!conversationId();
+      lastKey = key;
+      lastHadId = hasId;
+      // A new chat acquiring its /c/<id> is still the same conversation
+      if (wasNewChat && hasId) return;
+
+      if (panelHost) console.info('[ChatGPT Export] Route changed, closing export panel:', key);
+      PanelManager.close();
+
+      if (CFG.urlGuard.test(location.href)) {
+        OverlayManager.mount();
+      } else {
+        OverlayManager.unmount();
       }
     };
     

@@ -16,7 +16,12 @@ class Settings {
       },
       exportTemplate: 'classic',
       mdPrefix: '',
-      mdSuffix: ''
+      mdSuffix: '',
+      // null = default corner. Otherwise { anchorX, anchorY, x, y }: offsets from
+      // the nearest viewport edges, so the button keeps its corner on resize.
+      buttonPosition: null,
+      // Replace image URLs with data URIs in HTML/Markdown downloads and copies
+      embedImages: true
     };
     this.current = this.load();
   }

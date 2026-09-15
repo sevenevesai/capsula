@@ -1,0 +1,198 @@
+{
+  "title": "Fixture: API conversation",
+  "create_time": 1752739200.0,
+  "update_time": 1752739500.0,
+  "conversation_id": "11111111-2222-4333-8444-555555555555",
+  "default_model_slug": "gpt-5",
+  "current_node": "a3",
+  "mapping": {
+    "root": { "id": "root", "message": null, "parent": null, "children": ["sys"] },
+    "sys": {
+      "id": "sys",
+      "parent": "root",
+      "children": ["u1"],
+      "message": {
+        "id": "sys",
+        "author": { "role": "system" },
+        "create_time": null,
+        "content": { "content_type": "text", "parts": [""] },
+        "metadata": { "is_visually_hidden_from_conversation": true },
+        "recipient": "all"
+      }
+    },
+    "u1": {
+      "id": "u1",
+      "parent": "sys",
+      "children": ["a1-thoughts"],
+      "message": {
+        "id": "u1",
+        "author": { "role": "user" },
+        "create_time": 1752739200.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["Summarize the trade-offs of **virtual DOM** diffing.\nKeep it short."] },
+        "metadata": { "attachments": [{ "id": "file-abc", "name": "notes.pdf", "mime_type": "application/pdf", "size": 1024 }] },
+        "recipient": "all"
+      }
+    },
+    "a1-thoughts": {
+      "id": "a1-thoughts",
+      "parent": "u1",
+      "children": ["a1-recap"],
+      "message": {
+        "id": "a1-thoughts",
+        "author": { "role": "assistant" },
+        "create_time": 1752739210.0,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "thoughts",
+          "thoughts": [
+            { "summary": "Weighing reconciliation costs", "content": "The user wants a concise comparison." },
+            { "summary": "Structuring the answer", "content": "A short list plus a table works." }
+          ]
+        },
+        "metadata": { "model_slug": "gpt-5-thinking" },
+        "recipient": "all"
+      }
+    },
+    "a1-recap": {
+      "id": "a1-recap",
+      "parent": "a1-thoughts",
+      "children": ["a1"],
+      "message": {
+        "id": "a1-recap",
+        "author": { "role": "assistant" },
+        "create_time": 1752739215.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "reasoning_recap", "content": "Thought for 1m 5s" },
+        "metadata": { "model_slug": "gpt-5-thinking" },
+        "recipient": "all"
+      }
+    },
+    "a1": {
+      "id": "a1",
+      "parent": "a1-recap",
+      "children": ["u2", "u2-alt"],
+      "message": {
+        "id": "a1",
+        "author": { "role": "assistant" },
+        "create_time": 1752739220.0,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "text",
+          "parts": ["## Trade-offs\n\nVirtual DOM diffing trades *raw speed* for **predictability**.citeturn0search1\n\n- Pros\n  - Declarative updates\n  - Batching for free\n- Cons\n  1. Diff cost scales with tree size\n  2. Memory for the shadow tree\n\n| Approach | Cost | Wins |\n|---|:---:|---|\n| Virtual DOM | O(n) diff | Simplicity |\n| Fine-grained signals | O(1) updates | Speed |\n\nThe amortized cost is \\(O(n)\\) per render, and for a balanced tree:\n\n\\[\nT(n) = 2T(n/2) + O(1)\n\\]\n\n```js\nfunction diff(a, b) {\n  return a.type === b.type ? patch(a, b) : replace(a, b);\n}\n```\n\n> Rule of thumb: measure before optimizing.\n\n---\n\nSee 【3†source】 for benchmarks."]
+        },
+        "metadata": { "model_slug": "gpt-5-thinking", "citations": [] },
+        "recipient": "all"
+      }
+    },
+    "u2-alt": {
+      "id": "u2-alt",
+      "parent": "a1",
+      "children": [],
+      "message": {
+        "id": "u2-alt",
+        "author": { "role": "user" },
+        "create_time": 1752739300.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["This branch was abandoned and must not appear."] },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "u2": {
+      "id": "u2",
+      "parent": "a1",
+      "children": ["a2-tool-call"],
+      "message": {
+        "id": "u2",
+        "author": { "role": "user" },
+        "create_time": 1752739320.0,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "multimodal_text",
+          "parts": [
+            { "content_type": "image_asset_pointer", "asset_pointer": "file-service://file-user-upload-1", "width": 640, "height": 480, "metadata": null },
+            "Draw a diagram like this one."
+          ]
+        },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "a2-tool-call": {
+      "id": "a2-tool-call",
+      "parent": "u2",
+      "children": ["a2-tool-result"],
+      "message": {
+        "id": "a2-tool-call",
+        "author": { "role": "assistant" },
+        "create_time": 1752739330.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["{\"prompt\": \"a diagram\"}"] },
+        "metadata": { "model_slug": "gpt-5" },
+        "recipient": "dalle.text2im"
+      }
+    },
+    "a2-tool-result": {
+      "id": "a2-tool-result",
+      "parent": "a2-tool-call",
+      "children": ["a2"],
+      "message": {
+        "id": "a2-tool-result",
+        "author": { "role": "tool", "name": "dalle.text2im" },
+        "create_time": 1752739340.0,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "multimodal_text",
+          "parts": [
+            { "content_type": "image_asset_pointer", "asset_pointer": "sediment://file_0000generated1", "width": 1024, "height": 1024, "metadata": { "dalle": { "prompt": "a diagram" } } }
+          ]
+        },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "a2": {
+      "id": "a2",
+      "parent": "a2-tool-result",
+      "children": ["u3"],
+      "message": {
+        "id": "a2",
+        "author": { "role": "assistant" },
+        "create_time": 1752739350.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["Here is the diagram you asked for."] },
+        "metadata": { "model_slug": "gpt-5" },
+        "recipient": "all"
+      }
+    },
+    "u3": {
+      "id": "u3",
+      "parent": "a2",
+      "children": ["a3"],
+      "message": {
+        "id": "u3",
+        "author": { "role": "user" },
+        "create_time": 1752739400.0,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["Thanks!"] },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "a3": {
+      "id": "a3",
+      "parent": "u3",
+      "children": [],
+      "message": {
+        "id": "a3",
+        "author": { "role": "assistant" },
+        "create_time": 1752739410.0,
+        "status": "in_progress",
+        "content": { "content_type": "text", "parts": ["You're welcome. Anything else?"] },
+        "metadata": { "model_slug": "gpt-5" },
+        "recipient": "all"
+      }
+    }
+  }
+}

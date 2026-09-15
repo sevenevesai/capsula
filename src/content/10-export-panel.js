@@ -738,6 +738,11 @@ const ExportPanel = {
         background: ${colors.hover};
       }
 
+      .secondary-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
       .integration-btn {
         display: flex;
         align-items: center;

@@ -1,6 +1,6 @@
 
 /**
- * Capsula v1.4.0 - ChatGPT Export Extension
+ * Capsula v1.5.0 - ChatGPT Export Extension
  *
  * A browser extension for exporting ChatGPT conversations with improved
  * model detection, thinking state capture, media handling, and settings.
@@ -27,9 +27,11 @@ const CFG = {
   minSize: 48,
   zIndex: 2147483000,
   nudgeGap: 12,
+  edgeMarginPx: 8, // min gap between a dragged button and the viewport edge
+  dragThresholdPx: 4, // pointer travel before a press becomes a drag instead of a click
   
   // Extension metadata
-  version: '1.4.0',
+  version: '1.5.0',
   
   // URL pattern for ChatGPT domains
   urlGuard: /^https:\/\/(chat\.openai\.com|chatgpt\.com)\//,
@@ -40,6 +42,7 @@ const CFG = {
   autoExpandDelay: 50, // ms between auto-expand clicks
   scrollSweepDelayMs: 60, // ms to let React mount turns after each sweep step
   scrollSweepMaxSteps: 200, // hard cap on sweep iterations
+  sweepCurtainFadeMs: 150, // curtain fade-in/out; scrolling starts only after fade-in
   
   // Panel dimensions
   panelWidth: 900,
@@ -108,4 +111,3 @@ const CFG = {
     ]
   }
 };
-

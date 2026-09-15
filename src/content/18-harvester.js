@@ -1,10 +1,212 @@
 /* ===========================
+   Harvest Curtain
+   =========================== */
+// Progress cover over the conversation area while a harvest runs. Translucent
+// while the conversation API and the page are read; opaque during a DOM
+// scroll sweep so the scroll jumps stay invisible. Sits just below the export
+// button so its spinner stays visible, and swallows pointer input so the user
+// cannot scroll mid-sweep.
+const HarvestCurtain = {
+  host: null,
+  curtain: null,
+  fill: null,
+  detail: null,
+  shownAt: 0,
+  MIN_VISIBLE_MS: 450,
+
+  async show(scroller) {
+    this.hide(true);
+    const rect = this.coverRect(scroller);
+    const background = this.pageBackground(scroller);
+    const palette = this.paletteFor(background);
+
+    const host = document.createElement('div');
+    host.setAttribute('data-cgpt-harvest-curtain', '1');
+    Object.assign(host.style, {
+      position: 'fixed',
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      zIndex: String(CFG.zIndex - 1),
+      opacity: '0',
+      transition: `opacity ${CFG.sweepCurtainFadeMs}ms ease`
+    });
+
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { all: initial; }
+        .curtain {
+          position: absolute;
+          inset: 0;
+          background: ${this.veil(background)};
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: ${ThemeUtils.getChatGPTFont()};
+          transition: background ${CFG.sweepCurtainFadeMs}ms ease;
+        }
+        .curtain.opaque {
+          background: ${background};
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+        .status {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          padding: 18px 24px;
+          border-radius: 12px;
+          background: ${palette.card};
+          color: ${palette.textSecondary};
+          font-size: 13px;
+        }
+        .label {
+          color: ${palette.text};
+          font-size: 14px;
+          font-weight: 500;
+        }
+        .bar {
+          width: 220px;
+          height: 4px;
+          border-radius: 2px;
+          background: ${palette.track};
+          overflow: hidden;
+        }
+        .fill {
+          height: 100%;
+          width: 0;
+          border-radius: 2px;
+          background: ${palette.accent};
+          transition: width 200ms ease;
+        }
+      </style>
+      <div class="curtain" role="status" aria-live="polite">
+        <div class="status">
+          <div class="label">Collecting conversation</div>
+          <div class="bar"><div class="fill"></div></div>
+          <div class="detail">Connecting</div>
+        </div>
+      </div>
+    `;
+
+    document.documentElement.appendChild(host);
+    this.host = host;
+    this.curtain = shadow.querySelector('.curtain');
+    this.fill = shadow.querySelector('.fill');
+    this.detail = shadow.querySelector('.detail');
+
+    // Commit opacity:0 before flipping it, otherwise there is no transition
+    host.getBoundingClientRect();
+    host.style.opacity = '1';
+    this.shownAt = Date.now();
+    await new Promise(resolve => setTimeout(resolve, CFG.sweepCurtainFadeMs + 20));
+  },
+
+  // A scroll sweep must not show the page moving underneath
+  async setOpaque() {
+    if (!this.curtain || this.curtain.classList.contains('opaque')) return;
+    this.curtain.classList.add('opaque');
+    await new Promise(resolve => setTimeout(resolve, CFG.sweepCurtainFadeMs + 20));
+  },
+
+  update(fraction, detail) {
+    if (!this.host) return;
+    if (typeof fraction === 'number') {
+      this.fill.style.width = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
+    }
+    if (detail) this.detail.textContent = detail;
+  },
+
+  hide(immediate = false) {
+    const host = this.host;
+    if (!host) return;
+    this.host = null;
+    this.curtain = null;
+    this.fill = null;
+    this.detail = null;
+    if (immediate) {
+      host.remove();
+      return;
+    }
+    // Hold briefly so a fast harvest still reads as a deliberate transition
+    const remaining = Math.max(0, this.MIN_VISIBLE_MS - (Date.now() - this.shownAt));
+    setTimeout(() => {
+      host.style.opacity = '0';
+      setTimeout(() => host.remove(), CFG.sweepCurtainFadeMs + 20);
+    }, remaining);
+  },
+
+  coverRect(scroller) {
+    if (!scroller || scroller === document.scrollingElement) {
+      return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    }
+    const r = scroller.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  },
+
+  // Nearest painted background behind the scroller. ChatGPT's own theme can
+  // differ from the OS scheme, so sampling beats ThemeUtils here.
+  pageBackground(scroller) {
+    const isTransparent = (bg) => !bg || bg === 'transparent' ||
+      (bg.startsWith('rgba(') && bg.endsWith(', 0)'));
+    let node = scroller && scroller !== document.scrollingElement ? scroller : document.body;
+    while (node) {
+      const bg = window.getComputedStyle(node).backgroundColor;
+      if (!isTransparent(bg)) return bg;
+      node = node.parentElement;
+    }
+    return ThemeUtils.isDark() ? '#212121' : '#ffffff';
+  },
+
+  veil(background) {
+    const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(background);
+    if (rgb) return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, 0.8)`;
+    return ThemeUtils.isDark() ? 'rgba(33, 33, 33, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+  },
+
+  paletteFor(background) {
+    // Only rgb()/rgba() serializations carry 0-255 channels; Firefox can
+    // serialize other color spaces (oklch, color()) whose numbers mean
+    // something else, so those fall back to the OS scheme
+    const channels = background.startsWith('rgb')
+      ? (background.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+      : [];
+    const luminance = channels.length === 3
+      ? 0.299 * channels[0] + 0.587 * channels[1] + 0.114 * channels[2]
+      : (ThemeUtils.isDark() ? 0 : 255);
+    const dark = luminance < 128;
+    return {
+      text: dark ? '#ececec' : '#111827',
+      textSecondary: dark ? '#9ca3af' : '#6b7280',
+      track: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      card: dark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.7)',
+      accent: ThemeUtils.getColors().accentPrimary
+    };
+  }
+};
+
+/* ===========================
    Harvester Module (Enhanced)
    =========================== */
 const Harvester = {
   async harvest() {
+    await HarvestCurtain.show(this.findConversationScroller());
+    try {
+      return await this.harvestUnderCurtain();
+    } finally {
+      HarvestCurtain.hide();
+    }
+  },
+
+  async harvestUnderCurtain() {
     // Auto-expand if enabled
     if (globalState.settings.current.autoExpandThinking) {
+      HarvestCurtain.update(0.05, 'Expanding thinking blocks');
       await this.autoExpandThinking();
     }
 
@@ -12,11 +214,60 @@ const Harvester = {
       title: this.detectTitle() || 'ChatGPT Conversation',
       url: location.href,
       model: this.detectModel(),
-      exported_at: new Date().toISOString()
+      exported_at: new Date().toISOString(),
+      source: 'dom'
     };
 
-    const messages = await this.collectMessagesWithScrollSweep();
+    // The conversation JSON is complete without scrolling and carries real
+    // timestamps and models; mounted DOM turns still supply the content
+    // where they exist. Any API failure falls back to the DOM sweep.
+    let messages = null;
+    try {
+      const api = await ConversationApi.load(location.href, (fraction, detail) => HarvestCurtain.update(fraction, detail));
+      if (api) {
+        messages = this.mergeApiWithDom(api.messages, this.collectAllMessages());
+        HarvestCurtain.update(1, `${messages.length} message${messages.length === 1 ? '' : 's'}`);
+        meta.source = 'api';
+        meta.conversation_id = api.id;
+        if (api.title) meta.title = api.title;
+        if (api.model) meta.model = api.model;
+        if (api.createdAt) meta.created_at = api.createdAt;
+        if (api.updatedAt) meta.updated_at = api.updatedAt;
+      }
+    } catch (err) {
+      console.warn('[ChatGPT Export] Conversation API unavailable, using the DOM sweep:', err);
+    }
+    if (!messages) messages = await this.collectMessagesWithScrollSweep();
+
     return { meta, messages };
+  },
+
+  // API turns give completeness, order and metadata. A mounted DOM turn gives
+  // higher-fidelity content (rendered math, mermaid SVG, canvas detection), so
+  // its blocks win whenever a ChatGPT message id matches.
+  mergeApiWithDom(apiMessages, domMessages) {
+    const domById = new Map();
+    domMessages.forEach(dom => {
+      [dom.id].concat(dom.messageIds || []).forEach(id => {
+        if (id && !/^msg-\d+$/.test(id) && !domById.has(id)) domById.set(id, dom);
+      });
+    });
+    return apiMessages.map((api, index) => {
+      const dom = (api.messageIds || []).map(id => domById.get(id)).find(Boolean);
+      const merged = dom
+        ? {
+            ...dom,
+            timestamp: api.timestamp,
+            model: api.model || dom.model,
+            thinking: dom.thinking || api.thinking,
+            thinkingSequence: dom.thinkingSequence || api.thinkingSequence,
+            messageIds: api.messageIds,
+            source: 'dom'
+          }
+        : api;
+      merged.index = index;
+      return merged;
+    });
   },
 
   findConversationScroller() {
@@ -41,11 +292,18 @@ const Harvester = {
   },
 
   async collectMessagesWithScrollSweep() {
-    // ChatGPT virtualizes the conversation: turns outside the viewport are
-    // not mounted, so a single collect from the bottom silently drops the
-    // earliest messages. Sweep top-to-bottom, collecting as turns mount.
+    // ChatGPT virtualizes long conversations: turns outside the viewport are
+    // not mounted, so a single collect silently drops whatever is off-screen.
+    // Sweep through the scroller, collecting as turns mount.
     const scroller = this.findConversationScroller();
     if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 1) {
+      return this.collectAllMessages();
+    }
+
+    const headMounted = this.isHeadMounted(scroller);
+    const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    if (headMounted && atBottom) {
+      // Turn 1 through the last turn are all in the DOM: nothing to sweep
       return this.collectAllMessages();
     }
 
@@ -59,30 +317,74 @@ const Harvester = {
         : m.id;
       if (!byKey.has(key)) byKey.set(key, m);
     });
+    // 'instant' defeats any scroll-behavior: smooth on the scroller, which
+    // would otherwise animate every step and defeat the settle check
+    const jump = (top) => scroller.scrollTo({ top, behavior: 'instant' });
+    const maxTop = () => Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+    const report = () => HarvestCurtain.update(
+      scroller.scrollTop / maxTop(),
+      `${byKey.size} message${byKey.size === 1 ? '' : 's'} found`
+    );
 
+    if (!HarvestCurtain.host) await HarvestCurtain.show(scroller);
+    await HarvestCurtain.setOpaque();
     try {
-      scroller.scrollTop = 0;
-      await this.waitForRender();
+      // With the head mounted, everything above the viewport is already in
+      // the DOM, so the sweep only has to cover what lies below
+      if (!headMounted) {
+        jump(0);
+        await this.waitForRender();
+      }
       merge(this.collectAllMessages());
+      report();
 
       const step = Math.max(200, Math.floor(scroller.clientHeight * 0.85));
       let guard = 0;
-      while (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 2 &&
-             guard++ < CFG.scrollSweepMaxSteps) {
+      while (scroller.scrollTop < maxTop() - 2 && guard++ < CFG.scrollSweepMaxSteps) {
         const before = scroller.scrollTop;
-        scroller.scrollTop = before + step;
+        jump(before + step);
         await this.waitForRender();
         if (scroller.scrollTop === before) break; // cannot scroll further
         merge(this.collectAllMessages());
+        report();
       }
     } finally {
-      scroller.scrollTop = originalTop;
+      jump(originalTop);
     }
 
     // Sweep runs top-to-bottom, so map insertion order is conversation order
     const messages = Array.from(byKey.values());
     messages.forEach((m, i) => { m.index = i; });
     return messages;
+  },
+
+  // True when turn 1 and every turn up to the last mounted one are in the DOM.
+  // Relies on ChatGPT's conversation-indexed data-testid="conversation-turn-N";
+  // any other markup answers false, which falls back to a full sweep.
+  isHeadMounted(scroller) {
+    const turns = this.findAllTurnContainers();
+    if (turns.length === 0) return false;
+
+    const numbers = turns.map(turn => {
+      const tagged = turn.matches('[data-testid^="conversation-turn-"]') ? turn
+        : turn.closest('[data-testid^="conversation-turn-"]') ||
+          turn.querySelector('[data-testid^="conversation-turn-"]');
+      const match = tagged && /^conversation-turn-(\d+)$/.exec(tagged.getAttribute('data-testid'));
+      return match ? Number(match[1]) : NaN;
+    });
+    if (numbers.some(Number.isNaN)) return false;
+    numbers.sort((a, b) => a - b);
+    if (numbers[0] !== 1) return false;
+    for (let i = 1; i < numbers.length; i++) {
+      if (numbers[i] !== numbers[i - 1] + 1) return false;
+    }
+
+    // Guard against a virtualizer that renumbers mounted turns from 1: a
+    // spacer taller than the viewport above the first turn means unmounted
+    // content precedes it
+    const contentTop = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+    const firstOffset = turns[0].getBoundingClientRect().top - contentTop + scroller.scrollTop;
+    return firstOffset <= scroller.clientHeight;
   },
 
   async autoExpandThinking() {
@@ -213,6 +515,12 @@ const Harvester = {
             container.getAttribute('data-message-id') ||
             container.querySelector('[data-message-id]')?.getAttribute('data-message-id') ||
             container.id || `msg-${messages.length + 1}`,
+        // Every ChatGPT message id inside the turn, for matching against the
+        // conversation API (turn ids and message ids differ)
+        messageIds: Array.from(container.querySelectorAll('[data-message-id]'))
+          .map(el => el.getAttribute('data-message-id'))
+          .concat(container.getAttribute('data-message-id') || [])
+          .filter(Boolean),
         index: messages.length,
         role: role,
 
@@ -254,6 +562,11 @@ const Harvester = {
     return messages;
   },
 
+  // Name of the selector tier that found the turns on the last call, or null
+  // when nothing matched. Surfaced when a harvest comes back empty, so a
+  // ChatGPT layout change is distinguishable from an empty page.
+  lastTurnStrategy: null,
+
   findAllTurnContainers() {
     const containers = [];
     const seen = new Set();
@@ -261,26 +574,27 @@ const Harvester = {
     // Priority order for finding containers
     const strategies = [
       // Most reliable: article with data-scroll-anchor
-      () => document.querySelectorAll('article[data-scroll-anchor]'),
+      ['article[data-scroll-anchor]', () => document.querySelectorAll('article[data-scroll-anchor]')],
       
       // Turn wrappers: data-testid="conversation-turn-N" (current UI) or the
       // older exact "conversation-turn"
-      () => document.querySelectorAll('[data-testid^="conversation-turn"]'),
+      ['data-testid=conversation-turn', () => document.querySelectorAll('[data-testid^="conversation-turn"]')],
 
       // Turn wrappers marked with data-turn="user|assistant"
-      () => document.querySelectorAll('[data-turn]'),
+      ['data-turn', () => document.querySelectorAll('[data-turn]')],
       
       // Message author role
-      () => document.querySelectorAll('[data-message-author-role]'),
+      ['data-message-author-role', () => document.querySelectorAll('[data-message-author-role]')],
       
       // Message IDs
-      () => document.querySelectorAll('div[data-message-id]'),
+      ['data-message-id', () => document.querySelectorAll('div[data-message-id]')],
       
       // Structural patterns
-      () => document.querySelectorAll('.group\\/conversation-turn, .agent-turn, .user-turn')
+      ['class patterns', () => document.querySelectorAll('.group\\/conversation-turn, .agent-turn, .user-turn')]
     ];
     
-    strategies.forEach(strategy => {
+    this.lastTurnStrategy = null;
+    strategies.forEach(([name, strategy]) => {
       const found = strategy();
       found.forEach(el => {
         if (Array.from(seen).some(existing => existing.contains(el) || el.contains(existing))) {
@@ -290,6 +604,7 @@ const Harvester = {
         if (!seen.has(el)) {
           containers.push(el);
           seen.add(el);
+          if (!this.lastTurnStrategy) this.lastTurnStrategy = name;
         }
       });
     });

@@ -33,6 +33,11 @@ const SettingsPanel = {
               <input type="checkbox" ${settings.inlineCode ? 'checked' : ''} data-setting="inlineCode">
               <span>Render inline code formatting</span>
             </label>
+
+            <label class="setting-item">
+              <input type="checkbox" ${settings.embedImages ? 'checked' : ''} data-setting="embedImages">
+              <span>Embed images in HTML and Markdown exports (keeps them visible after ChatGPT's image links expire)</span>
+            </label>
           </div>
           
           <div class="setting-group">
@@ -56,6 +61,12 @@ const SettingsPanel = {
               </select>
             </div>
             
+            <div class="setting-item">
+              <label>Export button position:</label>
+              <button class="secondary-btn" data-action="reset-button-position" ${settings.buttonPosition ? '' : 'disabled'}>Reset to corner</button>
+              <small class="setting-hint">Drag the floating button anywhere on the page; it stays there next time.</small>
+            </div>
+
             <div class="setting-item color-settings">
               <label>Custom Colors (leave empty for theme defaults):</label>
               <div class="color-inputs">
@@ -192,8 +203,16 @@ const SettingsPanel = {
     container.querySelector('[data-action="reset"]').addEventListener('click', () => {
       if (confirm('Reset all settings to defaults?')) {
         globalState.settings.reset();
+        OverlayManager.recomputePosition();
         globalState.setViewMode('main');
       }
+    });
+
+    const resetPositionBtn = container.querySelector('[data-action="reset-button-position"]');
+    resetPositionBtn?.addEventListener('click', () => {
+      globalState.settings.save({ buttonPosition: null });
+      OverlayManager.recomputePosition();
+      resetPositionBtn.disabled = true;
     });
 
     // Color resets

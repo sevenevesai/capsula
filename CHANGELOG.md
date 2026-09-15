@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-09-15
+
+### Added
+- **Faster conversation loading.** Capsula reads ChatGPT's conversation JSON first, avoiding a scroll through long threads when the API is available. Exports gain per-message timestamps, model information, and available thinking summaries and timing labels. Mounted turns still supply rendered content such as math, Mermaid diagrams, and canvas markers; off-screen turns are rebuilt from stored Markdown. If the API is unavailable, the DOM scroll sweep remains the fallback.
+- **Embedded images.** HTML and Markdown downloads and clipboard copies fetch and embed available images, so successfully embedded images survive expiring ChatGPT links. Embedding is on by default and can be disabled in Settings → Behavior. Cross-origin images may require optional permission for ChatGPT's image hosts. Images that cannot be fetched retain their original links; JSON and GitHub/Notion exports keep URLs. Markdown viewers must support data URI images to display them.
+- **Fixture regression suite.** `npm test` runs captured ChatGPT DOM snapshots and conversation JSON through the export pipeline and diffs the Markdown against `test/golden/`. A layout change in ChatGPT now shows up as a failing fixture instead of a silent bad export.
+- When no conversation turn matches any selector, the error toast says ChatGPT's layout may have changed instead of "No messages found".
+- The floating export button can be dragged anywhere on the page. Its position is remembered across sessions, anchored to the nearest corner so it survives window resizes, and clamped so it never leaves the viewport. Settings → Appearance has a "Reset to corner" button.
+
+### Fixed
+- The export panel could vanish right after opening: closing deferred the removal by 200 ms and then removed whichever panel was current, so an open that landed inside that window lost its panel. Close now releases state immediately and removes only the panel it was called for.
+- Route changes that keep the same conversation (query or hash changes, a new chat acquiring its `/c/<id>`) no longer close the panel. A route-triggered close is logged to the console.
+
+### Changed
+- Harvest no longer scrolls through the conversation when every turn is already in the DOM (contiguous `conversation-turn-N` from turn 1 while at the bottom of the thread). Every harvest now shows a progress curtain over the conversation area ("Collecting conversation", with the phase and message count); it is translucent while the conversation API is read and turns opaque if a scroll sweep runs, so the scroll jumps are never visible. A sweep starts from the current position instead of the top when the earlier turns are already mounted. The "Processing conversation..." toast is gone, replaced by the curtain.
+
 ## [1.4.0] - 2026-07-23
 
 ### Fixed
