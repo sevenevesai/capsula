@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-09-24
+
+### Added
+- **Writing boxes.** ChatGPT's draft boxes (a titled message or email with a copy button) export as titled blockquotes in Markdown and GitHub, collapsible cards in HTML and the preview, quotes in Notion, and structured `writing` blocks in JSON. When ChatGPT offers several versions (the ① ② tabs), every version is exported with its label. Previously the raw `:::writing{…}` markup appeared in exports.
+
+### Changed
+- The export format picked in the export panel is remembered across sessions instead of resetting to Markdown every time the panel opens.
+- HTML exports use the full window width instead of an 800px column. ChatGPT replies span the page; your messages stay right-aligned bubbles up to 70% of the width.
+- The export panel grows to 1400px wide on large screens (was 900px); it still takes 90% of narrower windows.
+
+### Fixed
+- Messages in HTML exports and in the export panel preview were held to about half the available width (a 70% cap nested inside another 70% cap), and your messages stopped short of the right edge.
+
 ## [1.5.0] - 2026-09-15
 
 ### Added

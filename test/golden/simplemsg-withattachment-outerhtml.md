@@ -1,6 +1,6 @@
 # Fixture
 
-**Version**: ChatGPT Export v1.5.0
+**Version**: ChatGPT Export v1.6.0
 
 ---
 

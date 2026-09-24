@@ -57,6 +57,7 @@ It works directly inside ChatGPT with advanced filtering, range selection, and p
 - Floating export button: drag to reposition; remembers its position across sessions
 - Loading overlay with progress while the conversation is collected
 - Export panel with live preview  
+- Remembers the export format you last picked
 - Context menu (right-click any assistant message)  
 - Keyboard shortcuts:  
   - `Alt+E` → open export panel  
@@ -283,7 +284,7 @@ Export conversations directly to Notion as pages with rich formatting.
 ---
 
 ## Technical Details
-- **Version:** 1.5.0
+- **Version:** 1.6.0
 - **Browsers:** Firefox 109+, Chrome 116+, Edge 116+
 - **Implementation:** Content script + background broker for API requests
 - **Dependencies:** None in the extension; `jsdom` is a dev dependency for the fixture tests only
@@ -352,7 +353,13 @@ Website: [seveneves.ai](https://seveneves.ai/capsula)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
 
-### v1.5.0 (Latest)
+### v1.6.0 (Latest)
+- ChatGPT writing boxes export as titled blockquotes (Markdown/GitHub), collapsible cards (HTML and preview), Notion quotes, and `writing` blocks in JSON, including every ① ② version
+- The export format you pick in the panel is remembered across sessions
+- HTML exports use the full window width; the export panel grows to 1400px on wide screens
+- Fixed messages in HTML exports and the preview being held to about half the width
+
+### v1.5.0
 - Faster exports through ChatGPT's conversation JSON, with a DOM fallback
 - Better capture of available thinking summaries, timing labels, timestamps, and model information
 - Available images embedded in HTML/Markdown downloads and copies so saved images outlast expiring links

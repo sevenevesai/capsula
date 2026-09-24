@@ -1,0 +1,109 @@
+{
+  "title": "Writing blocks",
+  "create_time": 1790000000,
+  "update_time": 1790000300,
+  "conversation_id": "fixture-writing-blocks",
+  "default_model_slug": "gpt-5-6-thinking",
+  "current_node": "a2",
+  "mapping": {
+    "root": { "id": "root", "parent": null, "children": ["u1"], "message": null },
+    "u1": {
+      "id": "u1",
+      "parent": "root",
+      "children": ["a1"],
+      "message": {
+        "id": "u1",
+        "author": { "role": "user" },
+        "create_time": 1790000000,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["Draft a short note telling the team the release is out."] },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "a1": {
+      "id": "a1",
+      "parent": "u1",
+      "children": ["u2"],
+      "message": {
+        "id": "a1",
+        "author": { "role": "assistant" },
+        "create_time": 1790000010,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "text",
+          "parts": ["Here is a draft you can send:\n\n:::writing{variant=\"chat_message\" id=\"301\" title=\"Release note\"}\nHi all, version 2.4 is live. Thanks for testing it this week.\n\nThanks,\nSam\n:::\n\nThe first version is the **safer** pick."]
+        },
+        "metadata": {
+          "model_slug": "gpt-5-6-thinking",
+          "writing_blocks": {
+            "301": {
+              "id": "301",
+              "index": "0",
+              "variant": "chat_message",
+              "content": "Hi all, version 2.4 is live. Thanks for testing it this week.\n\nThanks,\nSam",
+              "metadata": {
+                "options": [
+                  { "id": "option_neutral_1", "label": "Neutral", "content": "Hi all, version 2.4 is live. Thanks for testing it this week.\n\nThanks,\nSam" },
+                  { "id": "option_casual_2", "label": "Casual", "content": "Hey team, 2.4 just shipped! Big thanks for all the testing.\n\nCheers,\nSam" }
+                ],
+                "options_loading": false,
+                "active_option_id": "option_neutral_1"
+              },
+              "edited": false,
+              "title": "Release note"
+            }
+          }
+        },
+        "recipient": "all"
+      }
+    },
+    "u2": {
+      "id": "u2",
+      "parent": "a1",
+      "children": ["a2"],
+      "message": {
+        "id": "u2",
+        "author": { "role": "user" },
+        "create_time": 1790000100,
+        "status": "finished_successfully",
+        "content": { "content_type": "text", "parts": ["Also a one-line status for the channel topic."] },
+        "metadata": {},
+        "recipient": "all"
+      }
+    },
+    "a2": {
+      "id": "a2",
+      "parent": "u2",
+      "children": [],
+      "message": {
+        "id": "a2",
+        "author": { "role": "assistant" },
+        "create_time": 1790000110,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "text",
+          "parts": [":::writing{variant=\"chat_message\" id=\"302\" title=\"Channel topic\"}\nRelease 2.4 is live - report issues in #release.\n:::\n\nOr shorter:\n\n:::writing{variant=\"chat_message\" id=\"303\"}\n2.4 is live.\n:::"]
+        },
+        "metadata": {
+          "model_slug": "gpt-5-6-thinking",
+          "writing_blocks": {
+            "303": {
+              "id": "303",
+              "index": "1",
+              "variant": "chat_message",
+              "content": "2.4 is live.",
+              "metadata": {
+                "options": [{ "id": "option_short_1", "label": "Short", "content": "2.4 is live." }],
+                "options_loading": false
+              },
+              "edited": false,
+              "title": "Short topic"
+            }
+          }
+        },
+        "recipient": "all"
+      }
+    }
+  }
+}

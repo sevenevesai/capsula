@@ -370,11 +370,50 @@ const MessageFormatter = {
           
         case 'divider':
           return '<hr>';
-          
+
+        case 'writing':
+          return this.writingToHtml(block);
+
         default:
           return '';
       }
     }).join('');
+  },
+
+  // <details> collapses without script, so the card also works under the HTML
+  // export's CSP. Versions are stacked, not tabbed, so all of them print.
+  writingToHtml(block) {
+    const versions = (block.versions || []).map((version, i) => {
+      const label = version.label
+        ? `<div class="writing-label">${Utils.escapeHtml(this.versionMarker(i) + ' ' + version.label)}</div>`
+        : '';
+      const paras = String(version.text || '').split(/\n{2,}/)
+        .filter(p => p.trim())
+        .map(p => `<p>${this.formatInlineMarkdown(p).replace(/\n/g, '<br>')}</p>`)
+        .join('');
+      return `<div class="writing-version">${label}${paras}</div>`;
+    }).join('');
+    return `<details class="writing-block" open><summary>${Utils.escapeHtml(block.title || 'Draft')}</summary>${versions}</details>`;
+  },
+
+  // One titled blockquote per version
+  writingToMarkdown(block) {
+    return (block.versions || []).map((version, i) => {
+      const heading = this.writingHeading(block, i);
+      const body = String(version.text || '').split('\n').map(line => (line ? `> ${line}` : '>'));
+      return (heading ? [`> **${heading}**`, '>', ...body] : body).join('\n');
+    }).join('\n\n');
+  },
+
+  writingHeading(block, index) {
+    const version = (block.versions || [])[index];
+    const label = version && version.label ? `${this.versionMarker(index)} ${version.label}` : '';
+    return [block.title, label].filter(Boolean).join(' · ');
+  },
+
+  // ① ② … as on the page's version tabs
+  versionMarker(index) {
+    return index < 20 ? String.fromCodePoint(0x2460 + index) : `${index + 1}.`;
   },
 
   formatInlineMarkdown(md, mathMap) {

@@ -3,7 +3,7 @@
    =========================== */
 const ExportManager = {
   async export(harvest, format = null) {
-    const exportFormat = format || globalState.exportFormat;
+    const exportFormat = format || globalState.settings.current.exportFormat;
     const source = await this.withEmbeddedImages(harvest, exportFormat);
     const content = this.generateContent(source, exportFormat);
     const filename = this.generateFilename(harvest, exportFormat);
@@ -17,7 +17,7 @@ const ExportManager = {
   },
 
   async copy(harvest, format = null) {
-    const exportFormat = format || globalState.exportFormat;
+    const exportFormat = format || globalState.settings.current.exportFormat;
     const source = await this.withEmbeddedImages(harvest, exportFormat);
     const content = this.generateContent(source, exportFormat);
     
@@ -218,6 +218,9 @@ const ExportManager = {
         case 'divider':
           out.push('\n\n---\n');
           break;
+        case 'writing':
+          out.push(`\n\n${MessageFormatter.writingToMarkdown(b)}\n`);
+          break;
       }
     });
     // Join blocks with exactly one blank line without collapsing newlines
@@ -268,8 +271,7 @@ const ExportManager = {
     body {
       font-family: ${chatFont};
       line-height: 1.6;
-      max-width: 800px;
-      margin: 0 auto;
+      margin: 0;
       padding: 20px;
       background: #f9fafb;
       color: #111827;
@@ -287,6 +289,7 @@ const ExportManager = {
     }
     .message.user { justify-content: flex-end; }
     .message.assistant { justify-content: flex-start; }
+    .message.user .turn { max-width: 70%; }
     .thinking-label {
       font-size: 12px;
       color: #6b7280;
@@ -327,7 +330,6 @@ const ExportManager = {
       font-size: 12px;
     }
     .bubble {
-      max-width: 70%;
       padding: 12px 16px;
       border-radius: 16px;
     }
@@ -380,6 +382,29 @@ const ExportManager = {
     }
     math {
       font-size: 1.15em;
+    }
+    .writing-block {
+      border: 1px solid rgba(128,128,128,0.35);
+      border-radius: 12px;
+      padding: 8px 14px;
+      margin: 12px 0;
+      background: rgba(128,128,128,0.06);
+    }
+    .writing-block summary {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0.8;
+    }
+    .writing-version + .writing-version {
+      border-top: 1px dashed rgba(128,128,128,0.35);
+      margin-top: 8px;
+    }
+    .writing-label {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.7;
+      margin-top: 8px;
     }
     img {
       max-width: 100%;
@@ -468,7 +493,7 @@ const ExportManager = {
 
     return `
     <div class="message ${msg.role}">
-      <div style="max-width: 70%;">
+      <div class="turn">
         ${metadataHtml}
         ${hasBubbleContent ? `
         <div class="bubble">

@@ -15,6 +15,7 @@ class Settings {
         panelBg: null
       },
       exportTemplate: 'classic',
+      exportFormat: 'markdown',
       mdPrefix: '',
       mdSuffix: '',
       // null = default corner. Otherwise { anchorX, anchorY, x, y }: offsets from
@@ -99,7 +100,6 @@ class ExportState {
       isDragging: false,
       dragMode: null // 'add' or 'remove' for ctrl+drag
     };
-    this.exportFormat = 'markdown';
     if (typeof this.scrollObserver === 'function') {
       try {
         this.scrollObserver();
@@ -218,10 +218,6 @@ class ExportState {
       return true;
     }
     return this.selection.selectedIndices.has(index);
-  }
-
-  setExportFormat(format) {
-    this.exportFormat = format;
   }
 
   setViewMode(mode) {

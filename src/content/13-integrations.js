@@ -384,6 +384,9 @@ const IntegrationMarkdownFormatter = {
       case 'divider':
         return '---';
 
+      case 'writing':
+        return MessageFormatter.writingToMarkdown(block);
+
       default:
         return '';
     }
@@ -739,6 +742,22 @@ const NotionBlocksConverter = {
           type: 'divider',
           divider: {}
         }];
+
+      // One quote per version, headed like the Markdown export
+      case 'writing':
+        return (block.versions || []).map((version, i) => {
+          const heading = MessageFormatter.writingHeading(block, i);
+          return {
+            object: 'block',
+            type: 'quote',
+            quote: {
+              rich_text: [
+                ...(heading ? [{ type: 'text', text: { content: heading + '\n' }, annotations: { bold: true } }] : []),
+                ...this._chunkText(version.text || '', this.MAX_CHARS_PER_BLOCK)
+              ]
+            }
+          };
+        });
 
       default:
         return [];

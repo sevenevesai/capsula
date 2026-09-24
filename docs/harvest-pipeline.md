@@ -47,13 +47,23 @@ which selector tier found turns; null after a harvest means the page markup chan
 ## MarkdownBlocks
 
 Converts ChatGPT's stored markdown into the block shape the DOM extractor emits (`kind` of
-`heading`, `para`, `list`, `code`, `table`, `quote`, `divider`, `image`, `math`). Inline
+`heading`, `para`, `list`, `code`, `table`, `quote`, `divider`, `image`, `math`, plus the
+API-only `writing`). Inline
 formatting stays as markdown inside `md`/`text`, which is what the renderers expect. `\( \)`
 becomes `$…$` and `\[ \]` a `math` block, matching the DOM path's markdown output; there is no
 MathML on this path, so HTML exports of API-only turns show LaTeX source. Citation markers
 (private-use glyph runs and `【n†source】`) are stripped. List nesting is by indentation and an
 item's `ordered` flag describes its children, as in the DOM tree. Tables produce `rows` plus an
 `html` built with `MessageFormatter.formatInlineMarkdown`.
+
+ChatGPT's draft box (a titled message or email with a copy button, sometimes with ① ② version
+tabs) is stored as `:::writing{variant="…" id="…" title="…"}`, the text, then a `:::` line. It
+becomes `{ kind: 'writing', id, title, variant, versions: [{ label, text }] }`. The markdown holds
+only the selected version; `toMessage()` swaps in `metadata.writing_blocks[id].metadata.options`
+(each `{ id, label, content }`) when there are two or more, in stored order. Every stored version
+is exported, including those the page hides on an older, read-only box. Version text stays raw
+markdown: renderers split paragraphs on blank lines and keep single line breaks. The fence lines
+are stripped from `plain.text`. Other `:::` directives are not recognized.
 
 Not handled: setext headings, fenced code inside list items, lazy continuation lines, raw HTML.
 Those fall through as paragraphs or end the list early.
@@ -93,3 +103,12 @@ removal, `npm test` must still match the expected conversation export.
 - Canvas documents and code-interpreter input/output are not reconstructed from the API; a
   mounted DOM turn still supplies canvas detection. Tool-directed assistant messages are excluded.
 - The API path does not detect edits/regenerations beyond following the displayed branch.
+- The page's own conversation request, captured 2026-09-24, returned a flat `messages` array with
+  `page_info` cursors instead of `mapping`. The extension's plain GET still got `mapping` for
+  the same conversation (inferred: that export contained API-only text). If the plain endpoint
+  switches shape, `load()` throws "conversation payload has no mapping" and the DOM path runs.
+- A 2026-09-24 snapshot of the new app shell (`data-turn-key`, `data-content-search-unit-key`,
+  `data-chatgpt-selection-message-id`) matches none of the turn selectors or `data-message-id`,
+  so mounted turns supply no content and the DOM fallback finds no turns. On that page a writing
+  box (`data-testid="chatgpt-writing-block"`) renders only its active version, so a DOM path
+  would still need the API's options.

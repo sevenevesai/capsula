@@ -187,7 +187,7 @@ const ConversationApi = {
         if (typeof part === 'string') {
           if (part.trim()) {
             texts.push(part);
-            blocks.push(...MarkdownBlocks.parse(part));
+            blocks.push(...this.withWritingVersions(MarkdownBlocks.parse(part), meta.writing_blocks));
           }
           return;
         }
@@ -233,11 +233,33 @@ const ConversationApi = {
       attachment,
       hasAttachment: !!attachment,
       blocks,
-      plain: { text: MarkdownBlocks.normalize(texts.join('\n\n')).trim() },
+      // Writing-block fences are markup; their text stays
+      plain: { text: MarkdownBlocks.normalize(texts.join('\n\n')).replace(/^\s{0,3}:::(?:writing(?:\{.*\})?)?\s*$\n?/gm, '').trim() },
       timestamp: this.isoFromSeconds(firstTime) || new Date().toISOString(),
       model: turn.role === 'assistant' ? (model || conv.default_model_slug || null) : null,
       source: 'api'
     };
+  },
+
+  // The markdown carries only the selected version of a writing block; the
+  // alternatives the page shows as tabs live in metadata.writing_blocks
+  withWritingVersions(blocks, stored) {
+    blocks.forEach(block => {
+      if (block.kind !== 'writing') return;
+      const entry = stored && block.id ? stored[block.id] : null;
+      if (!entry) return;
+      if (!block.title && typeof entry.title === 'string') block.title = entry.title;
+      const options = Array.isArray(entry.metadata && entry.metadata.options)
+        ? entry.metadata.options.filter(o => o && typeof o.content === 'string' && o.content.trim())
+        : [];
+      if (options.length > 1) {
+        block.versions = options.map(o => ({
+          label: typeof o.label === 'string' && o.label ? o.label : null,
+          text: MarkdownBlocks.normalize(o.content).trim()
+        }));
+      }
+    });
+    return blocks;
   },
 
   attachmentFromMetadata(meta) {
@@ -373,6 +395,29 @@ const MarkdownBlocks = {
         continue;
       }
 
+      // ChatGPT's draft box: :::writing{variant="…" id="…" title="…"}, the
+      // selected version's text, then a closing ::: line
+      const writing = /^\s{0,3}:::writing(?:\{(.*)\})?\s*$/.exec(line);
+      if (writing) {
+        flush();
+        const attrs = this.directiveAttrs(writing[1] || '');
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^\s{0,3}:::\s*$/.test(lines[i])) {
+          buf.push(lines[i]);
+          i++;
+        }
+        i++;
+        blocks.push({
+          kind: 'writing',
+          id: attrs.id || null,
+          title: attrs.title || '',
+          variant: attrs.variant || null,
+          versions: [{ label: null, text: buf.join('\n').trim() }]
+        });
+        continue;
+      }
+
       if (!line.trim()) {
         flush();
         i++;
@@ -452,6 +497,15 @@ const MarkdownBlocks = {
       .replace(/ ?\uE200[\s\S]*?\uE201/g, '')
       .replace(/ ?【\d+†[^】]*】/g, '')
       .replace(/[\uE000-\uF8FF]/g, '');
+  },
+
+  directiveAttrs(source) {
+    const attrs = {};
+    source.replace(/([\w-]+)="([^"]*)"/g, (match, key, value) => {
+      attrs[key] = value;
+      return match;
+    });
+    return attrs;
   },
 
   // \( \) and \[ \] delimiters become the $ forms the DOM path emits

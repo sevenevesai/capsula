@@ -82,7 +82,8 @@ const ExportPanel = {
 
   getMainContent() {
     const colors = ThemeUtils.getColors();
-    
+    const format = globalState.settings.current.exportFormat;
+
     return `
       <div class="header">
         <div class="filter-buttons">
@@ -140,9 +141,9 @@ const ExportPanel = {
       
       <div class="footer">
         <select class="format-select" aria-label="Export format">
-          <option value="markdown">Markdown (.md)</option>
-          <option value="html">HTML (.html)</option>
-          <option value="json">JSON (.json)</option>
+          <option value="markdown" ${format === 'markdown' ? 'selected' : ''}>Markdown (.md)</option>
+          <option value="html" ${format === 'html' ? 'selected' : ''}>HTML (.html)</option>
+          <option value="json" ${format === 'json' ? 'selected' : ''}>JSON (.json)</option>
         </select>
 
         <button class="secondary-btn" data-action="copy">
@@ -179,7 +180,7 @@ const ExportPanel = {
   getStyles(colors, effectiveColors, chatFont) {
     const templateStyles = globalState.settings.current.exportTemplate === 'dense' ? `
       .message { margin-bottom: 8px; }
-      .bubble { max-width: 80%; padding: 8px 12px; }
+      .bubble { padding: 8px 12px; }
       .header { padding: 12px 16px; }
       .footer { padding: 12px 16px; }
     ` : '';
@@ -540,7 +541,7 @@ const ExportPanel = {
         align-self: flex-start;
       }
 
-      .thinking-container {
+      .message.user .thinking-container {
         max-width: 70%;
       }
       
@@ -562,7 +563,6 @@ const ExportPanel = {
       }
       
       .bubble {
-        max-width: 70%;
         padding: 12px 16px;
         border-radius: 16px;
         font-size: 14px;
@@ -602,6 +602,33 @@ const ExportPanel = {
 
       .bubble math {
         font-size: 1.15em;
+      }
+
+      .writing-block {
+        border: 1px solid rgba(128,128,128,0.35);
+        border-radius: 12px;
+        padding: 8px 14px;
+        margin: 8px 0;
+        background: rgba(128,128,128,0.06);
+      }
+
+      .writing-block summary {
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        opacity: 0.8;
+      }
+
+      .writing-version + .writing-version {
+        border-top: 1px dashed rgba(128,128,128,0.35);
+        margin-top: 8px;
+      }
+
+      .writing-label {
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0.7;
+        margin-top: 8px;
       }
       
       .bubble img {
@@ -862,7 +889,7 @@ const ExportPanel = {
     });
 
     formatSelect?.addEventListener('change', (e) => {
-      globalState.setExportFormat(e.target.value);
+      globalState.settings.save({ exportFormat: e.target.value });
     });
 
     clearRangeBtn?.addEventListener('click', () => {
