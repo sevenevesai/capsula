@@ -1,426 +1,316 @@
+<div align="center">
+
+<img src="icons/128.png" alt="Capsula logo" width="96">
+
 # Capsula
 
-**Capsula** is a browser extension for **Firefox** and **Chrome/Edge** that lets you **save and export AI conversations** into multiple formats.
-It works directly inside ChatGPT with advanced filtering, range selection, and privacy-focused design.
+**Save your ChatGPT conversations as files you own.**
+
+A browser extension for Firefox, Chrome and Edge that exports ChatGPT chats to Markdown, HTML,<br>
+JSON or a statistics dashboard, or sends them to a GitHub Gist or a Notion page.
+
+[![Firefox Add-ons](https://img.shields.io/amo/v/capsula?label=Firefox%20Add-ons)](https://addons.mozilla.org/firefox/addon/capsula/)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/bmhecmkffkebeajfplkngnjookpefmoe?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/capsula/bmhecmkffkebeajfplkngnjookpefmoe)
+[![License: MIT](https://img.shields.io/github/license/sevenevesai/capsula)](LICENSE)
+
+[**Install for Firefox**](https://addons.mozilla.org/firefox/addon/capsula/) ·
+[**Install for Chrome or Edge**](https://chromewebstore.google.com/detail/capsula/bmhecmkffkebeajfplkngnjookpefmoe) ·
+[Website](https://seveneves.ai/capsula) ·
+[Privacy](PRIVACY.md) ·
+[Report a bug](https://github.com/sevenevesai/capsula/issues/new)
+
+</div>
 
 ---
+
+A long ChatGPT conversation is hard to keep. Copy and paste flattens code blocks, tables and
+math, image links stop working after a while, and the page only loads the messages near where
+you have scrolled.
+
+Capsula adds an export button to ChatGPT. Pick the messages you want, check the preview, then
+download or copy them in the format you need, or send them to GitHub or Notion. It reads the
+conversation open in your tab, inside your browser: there are no Capsula servers, accounts or
+analytics. It does not back up or sync your history.
 
 ## Features
 
-### Core Export Options
-- **Multiple formats**
-  - **Markdown (.md):** clean, readable, ideal for notes
-  - **HTML (.html):** styled web page with CSP headers
-  - **JSON (.json):** structured data with full metadata
-  - **Dashboard (.html):** interactive conversation analytics and statistics
-  - **Clipboard copy:** quick one-click copy in any format
-  - **Right-click export:** export any single response
-  - **Download to file:** auto-named with timestamps
-- **Integrations** (New!)
-  - **GitHub:** Export directly to Gists or Issues
-  - **Notion:** Create pages with rich formatting and blocks
-  - Client-side only, privacy-first, optional host permissions
+### Export formats
 
-### Advanced Selection & Filtering
-- **Enhanced Interactive Timeline**
-  - Vertical timeline showing conversation flow
-  - Color-coded (blue = user, gray = assistant)
-  - Message length scaling, scroll-synced highlights
-  - **Multi-selection support**:
-    - **Ctrl+Click**: Toggle individual messages on/off
-    - **Shift+Click**: Extend selection from last anchor
-    - **Ctrl+Shift+Click**: Add range to existing selection
-    - **Ctrl+Drag**: Add/remove multiple messages while dragging
-    - **Right-Click**: Clear all selections
-  - Click-and-drag range selection with resize handles
-  - Non-contiguous selections for complex filtering
-- **Interactive Message Toggles**
-  - Checkbox button on each message in preview area
-  - Click to include/exclude messages from export
-  - Visual feedback (green checkmark = included)
-  - Bidirectional sync with timeline selection
-  - No keyboard shortcuts required
-- **Smart Message Visibility**
-  - Excluded messages shown greyed-out instead of hidden
-  - Auto-collapse excluded messages for clarity
-  - Click to expand/collapse for review
-  - Clear "(Not in export)" labels
-  - Preserved message alignment (user right, assistant left)
-- **Content filters**
-  - 🤖 **Assistant Only** — hide user messages
-  - 💻 **Code** — extract code blocks
-  - 📊 **Tables** — export only tabular data
-  - 📝 **Lists** — isolate list items
-  - **Range selection** — export just part of a conversation  
+| Format | What you get |
+|---|---|
+| Markdown (`.md`) | Headings, nested lists, pipe tables, fenced code with its language, LaTeX math, and images embedded as data URIs. Optional prefix and suffix text from Settings. |
+| HTML (`.html`) | A standalone page with light and dark styles, math rendered as MathML, and a Content Security Policy that blocks scripts. |
+| JSON (`.json`) | The structured conversation: metadata, each message as typed blocks, and the filters used. Shape below. |
+| Dashboard (`.html`) | Statistics on one page: message and content counts, code languages, thinking time, canvas documents and attachments, with bar charts. Opened from the bar-chart button in the panel header. |
 
-### User Interface
-- Floating export button: drag to reposition; remembers its position across sessions
-- Loading overlay with progress while the conversation is collected
-- Export panel with live preview  
-- Remembers the export format you last picked
-- Context menu (right-click any assistant message)  
-- Keyboard shortcuts:  
-  - `Alt+E` → open export panel  
-  - `Esc` → close panel  
-- Auto light/dark theme support  
+**Export Conversation** downloads `<title>_<YYYY-MM-DD_HH-MM-SS>.<ext>` and **Copy to
+Clipboard** copies the same export. The format picker remembers your last choice. Right-click
+any assistant message to copy just that answer or export it as Markdown, HTML or JSON.
 
-### Advanced Features
-- **Faster conversation loading**
-  - Reads ChatGPT's conversation JSON before falling back to a page scroll
-  - Preserves available per-message timestamps, models, and thinking summaries
-- **Embedded images**
-  - Downloads and embeds available images in HTML and Markdown exports and clipboard copies
-  - Successfully embedded images remain available after ChatGPT's image links expire
-  - Enabled by default; turn off in Settings → Behavior
-  - Failed image downloads retain their links; Markdown viewers need data URI support
-- **Enhanced thinking detection**
-  - Multi-stage thinking sequences with time tracking
-  - Accurate time parsing (handles "5s", "1m 30s", "a few seconds", etc.)
-  - Displays thinking labels in correct position (after role headers)
-  - Total thinking time calculations in dashboard
-- **Smart code language detection**
-  - Detects 20+ languages: Python, Java, JavaScript, TypeScript, C#, Go, Rust, Ruby, Swift, Kotlin, and more
-  - Uses ChatGPT's own language labels when available
-  - Pattern-based fallback for unlabeled code blocks
-  - Accurate dashboard metrics by language
-- **Canvas artifact detection**
-  - Identifies ChatGPT canvas documents
-  - Marks canvas artifacts in exports with title and type
-  - Dashboard analytics for canvas usage
-- **File attachment detection**
-  - Detects uploaded files in user messages
-  - Categorizes by type (images, PDFs, documents, code, archives)
-  - File metadata in exports and dashboard
-- **Interactive dashboard**
-  - Conversation analytics and statistics
-  - Code language breakdown
-  - Thinking metrics (time, stages, average)
-  - Canvas and attachment summaries
-  - Message distribution charts
-- **Smart content extraction**
-  - Preserves headings, lists, code, tables, blockquotes
-  - Handles images with alt text
-  - Maintains links and math equations
-- **SPA navigation support** — works across ChatGPT's single-page interface
-- **Performance optimized** — efficient DOM handling & debounced updates
+The JSON export, for scripts and agents that process it:
 
----
+```jsonc
+{
+  "meta": { "title": "…", "url": "…", "model": "…", "exported_at": "<ISO 8601>", "exportVersion": "<version>" },
+  "messages": [
+    {
+      "index": 0,
+      "role": "user",              // or "assistant"
+      "timestamp": "<ISO 8601>",   // when ChatGPT provides it
+      "model": "…",
+      "blocks": [{ "kind": "para", "md": "…" }]
+      // block kinds: para, heading, list, table, code, math, quote, divider, image, writing
+    }
+  ],
+  "exportSettings": { "filters": { … }, "range": … , "ui": { … } }
+}
+```
 
-## Security & Privacy
-- All processing happens locally in your browser  
-- **No remote code, no telemetry, no tracking**  
-- **Minimal permissions**: clipboard write, local settings storage, supported chat sites, and optional hosts for integrations and image downloads
-- Exported HTML files include a **strict Content Security Policy (CSP)**  
-- **XSS prevention** and **URL sanitization** built in  
-- Extension UI isolated with **Shadow DOM**  
+### Choose what goes in
 
-See [PRIVACY.md](./PRIVACY.md) for details.
+- **Timeline.** Drag on the timeline beside the preview to select a range, then adjust it with
+  its handles. Ctrl+Click toggles a message, Shift+Click extends the selection, Ctrl+Drag adds
+  or removes several, and right-click clears it.
+- **Message toggles.** Each message in the preview has a toggle. Excluded messages turn grey and
+  collapse, and stay in sync with the timeline.
+- **Filters.** **Assistant Only** drops your messages. **Code**, **Tables** and **Lists** keep
+  only those blocks, and combine with each other.
 
----
+### Keep what was in the chat
 
-## Installation
+- **The whole thread.** Capsula reads the conversation from ChatGPT's own conversation data, so
+  early messages are included without scrolling. If that is unavailable, it scrolls the page
+  itself behind a progress overlay.
+- **Formatting.** Headings, nested lists, tables, quotes, links and inline formatting carry
+  over. Code keeps ChatGPT's language label, or one of 19 common languages detected by pattern.
+- **Math and diagrams.** KaTeX math exports as LaTeX in Markdown and as MathML in HTML. Mermaid
+  diagrams export as their rendered image.
+- **Images that last.** HTML and Markdown exports and copies embed every image that downloads,
+  so it stays visible after ChatGPT's link expires. Turn it off in Settings → Behavior.
+- **ChatGPT extras.** Thinking labels and summaries, writing boxes with every ① ② version,
+  canvas markers, file attachments, and per-message timestamps and models where ChatGPT provides
+  them.
 
-### Firefox
-1. Download or clone this repository
-2. Run `node build.js firefox` to build the Firefox package
-3. Open Firefox and go to `about:debugging`
-4. Click **This Firefox** → **Load Temporary Add-on**
-5. Select `dist/firefox/manifest.json`
+### Send to GitHub or Notion
 
-### Chrome / Edge
-1. Download or clone this repository
-2. Run `node build.js chrome` to build the Chrome package
-3. Open Chrome and go to `chrome://extensions`
-4. Enable **Developer mode** (top-right toggle)
-5. Click **Load unpacked** and select the `dist/chrome/` folder
+- **GitHub.** Create a private (default) or public Gist, or an issue in a repository you name.
+  Gists over 1,000,000 characters are split into parts with an index file.
+- **Notion.** Create a page under a page or database you pick, with headings, lists, code and
+  quotes as Notion blocks.
 
----
+Both copy the new URL to your clipboard. Setup is under
+[GitHub and Notion setup](#github-and-notion-setup).
 
-## Usage
+### Around the edges
 
-### Basic Export
-1. Click the floating export button  
-2. Choose a format from the dropdown  
-3. Click **Export Conversation**
+- Press **Alt+E** to open the export panel and **Esc** to close it.
+- Drag the export button anywhere; Settings → Appearance → **Reset to corner** puts it back.
+- The panel follows your system's light or dark setting.
+- A short tutorial runs the first time you open the panel. Replay it from Settings → Tutorial.
 
-### Filtered Export
-1. Open the export panel  
-2. Toggle filters (Assistant Only, Code, Tables, Lists)  
-3. Combine filters as needed  
-4. Export the filtered result  
+## Install
 
-### Message Selection
-- **Timeline Selection**:
-  - Click and drag on timeline to select a range
-  - Ctrl+Click to toggle individual messages on/off
-  - Shift+Click to extend selection from last click
-  - Ctrl+Shift+Click to add range to existing selection
-  - Ctrl+Drag to add/remove multiple messages
-  - Right-click to clear all selections
-  - Adjust selection with resize handles
-- **Preview Area Selection**:
-  - Click checkbox next to "You" or "ChatGPT" label
-  - Toggle messages in/out of export while reviewing
-  - Greyed-out messages are excluded from export
-  - Click excluded messages to expand/collapse
-- **Clear Selection**:
-  - Click **Clear Selection** button to reset to all messages
-  - Or manually toggle all messages back on  
+| Browser | Install from | Requires |
+|---|---|---|
+| Firefox (desktop) | [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/capsula/) | Firefox 109 or later |
+| Chrome | [Chrome Web Store](https://chromewebstore.google.com/detail/capsula/bmhecmkffkebeajfplkngnjookpefmoe) | Chrome 116 or later |
+| Edge | [Chrome Web Store](https://chromewebstore.google.com/detail/capsula/bmhecmkffkebeajfplkngnjookpefmoe); allow extensions from other stores when Edge asks | Edge 116 or later |
 
-### Quick Export
-- Right-click any assistant message  
-- Choose export format or **Copy to Clipboard**  
-- Immediate single-message export  
+Store installs update themselves. Capsula runs on `chatgpt.com` and `chat.openai.com`.
 
----
+<details>
+<summary>Install from a GitHub release instead</summary>
 
-## Export Formats
+Each [release](https://github.com/sevenevesai/capsula/releases) attaches
+`capsula-<version>-firefox.zip`, `capsula-<version>-chrome.zip`, a source zip and
+`capsula-<version>-SHA256SUMS.txt`. These installs do not update themselves.
 
-- **Markdown (.md)**
-  Clean, human-readable, preserves formatting. Great for notes, Obsidian, GitHub, etc. Includes thinking labels, canvas markers, and file attachments.
+- **Firefox:** open `about:debugging` → **This Firefox** → **Load Temporary Add-on**, and pick
+  the Firefox zip. It is removed when Firefox restarts; use Firefox Add-ons for a lasting
+  install.
+- **Chrome or Edge:** unzip the Chrome zip, open `chrome://extensions` (`edge://extensions`),
+  turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder.
 
-- **HTML (.html)**
-  Styled standalone webpage. Includes CSP headers, light/dark support, no external resources. Beautifully formatted with syntax highlighting.
+</details>
 
-- **JSON (.json)**
-  Complete structured data with metadata (title, model, timestamp, thinking time, canvas info, attachments). Ideal for programmatic analysis.
+## Quick start
 
-- **Dashboard (.html)**
-  Interactive analytics page with conversation statistics, code language breakdown, thinking metrics, canvas/attachment summaries, and visual charts.
+1. Open a conversation on [chatgpt.com](https://chatgpt.com).
+2. Click the Capsula button in the bottom-right corner, or press **Alt+E**.
+3. Choose a format. To export only part of the chat, select on the timeline or toggle messages
+   in the preview.
+4. Click **Export Conversation** to download, or **Copy to Clipboard**.
 
----
+> [!IMPORTANT]
+> Capsula exports the conversation open in the current tab, one at a time. For your whole
+> history in one archive, use ChatGPT's own data export.
 
-## Integrations
+## GitHub and Notion setup
 
-### GitHub Export
-Export conversations directly to GitHub as Gists or Issues.
+Tokens are entered in the export panel's Settings → Integrations, stored in your browser's
+extension storage, and sent only to their own service. Your browser asks for access to
+`api.github.com` or `api.notion.com` the first time you use each one.
 
-**Setup:**
-1. Open the export panel and click the settings gear icon
-2. Go to the "Integrations" section
-3. Create a GitHub Personal Access Token:
-   - Visit [GitHub Token Settings](https://github.com/settings/tokens/new?scopes=gist&description=Capsula)
-   - Select the **"gist"** scope (for Gists)
-   - For Issues, also add **"repo"** or **"public_repo"** scope
-   - Copy the generated token
-4. Paste the token into the "GitHub Personal Access Token" field
-5. Click "Test Connection" to verify
-6. Click "Save Settings"
+**GitHub**
 
-**Usage:**
-- Click the **GitHub** button in the export panel footer
-- Choose options:
-  - **Gist Filename**: Auto-generated with date
-  - **Description**: Optional description for your gist
-  - **Visibility**: Private (default) or Public
-  - **Advanced**: Create as GitHub Issue (requires repository)
-- Click "Create Gist"
-- URL automatically copied to clipboard
+1. [Create a personal access token](https://github.com/settings/tokens/new?scopes=gist&description=Capsula)
+   with the `gist` scope. For issues, add `repo` (or `public_repo` for public repositories).
+2. Paste it into **Personal Access Token**, click **Test Connection**, then **Save Settings**.
+3. In the export panel, click **GitHub**, choose the visibility, and create the Gist. Under
+   **Advanced Options**, **Create as GitHub Issue instead** takes an `owner/repository`.
 
-**Features:**
-- Automatic file splitting for large conversations (>1MB)
-- Markdown format with full metadata
-- Progress tracking with visual feedback
-- Private gists by default
-- Optional GitHub Issue creation
+**Notion**
 
-### Notion Export
-Export conversations directly to Notion as pages with rich formatting.
+1. [Create an internal integration](https://www.notion.so/my-integrations) and copy its token.
+2. In Notion, open the page that should hold your exports and connect the integration to it.
+3. Paste the token into **Integration Token**, click **Test Connection**, then **Save Settings**.
+4. In the export panel, click **Notion**, then **Select Parent Page...** and create the page.
 
-**Setup:**
-1. Create a Notion Integration:
-   - Visit [Notion Integrations](https://www.notion.so/my-integrations)
-   - Click "New integration"
-   - Give it a name (e.g., "Capsula")
-   - Copy the "Internal Integration Token"
-2. Share a parent page with your integration:
-   - Open a Notion page where you want exports to go
-   - Click "Share" → "Invite"
-   - Select your integration
-3. In Capsula settings:
-   - Paste the token into "Integration Token"
-   - Click "Test Connection"
-   - Click "Save Settings"
+<details>
+<summary>Troubleshooting</summary>
 
-**Usage:**
-- Click the **Notion** button in the export panel footer
-- Configure options:
-  - **Page Title**: Auto-filled with conversation title
-  - **Parent Page**: Click "Select Parent Page..." and choose a page
-- Click "Create Page"
-- URL automatically copied to clipboard
+- **GitHub "Invalid token" or "Access forbidden":** the token is expired or lacks the `gist`
+  scope (or `repo` / `public_repo` for issues). Create a new one.
+- **GitHub "Rate limit exceeded":** wait a few minutes. Capsula already retries 429 and 5xx
+  responses up to three times.
+- **Notion "No pages found" or "Invalid parent":** the parent page is not connected to your
+  integration.
+- **Large Notion exports are slow:** pages are written 100 blocks per request.
 
-**Features:**
-- Rich formatting with Notion blocks (headings, paragraphs, code, lists, quotes)
-- Automatic content chunking for large conversations
-- Batch uploads with progress tracking (100 blocks per request)
-- Preserves code syntax highlighting
-- Canvas and attachment markers
-- Thinking labels included
+</details>
 
-### Privacy & Permissions
-- Integration tokens stored locally and sent only to the selected service
-- Optional encryption for tokens (Web Crypto API)
-- Integration host permissions requested when you enable an integration
-- Embedding images in exports may ask once for access to ChatGPT's image hosts (`*.oaiusercontent.com`, Azure blob storage); decline and exports keep the original image links
-- Integration API calls made directly from your browser to GitHub/Notion
-- No Capsula servers involved
-- Tokens can be cleared anytime in settings
+## Privacy and permissions
 
-### Troubleshooting
+| Permission | Used for |
+|---|---|
+| Access to `chatgpt.com` and `chat.openai.com` | Reading the conversation you export |
+| `storage` | GitHub and Notion tokens and integration settings |
+| `clipboardWrite` | **Copy to Clipboard** and the right-click copy |
+| Optional: `api.github.com`, `api.notion.com` | The integrations, requested on first use |
+| Optional: `*.oaiusercontent.com`, `*.blob.core.windows.net` | Embedding images from ChatGPT's image hosts, requested on first use; decline and exports keep the image links |
 
-**GitHub:**
-- **"Invalid token"**: Regenerate token with correct scopes
-- **"Access forbidden"**: Ensure token has "gist" scope
-- **"Rate limit exceeded"**: Wait a few minutes and try again
-- **For Issues**: Token needs "repo" or "public_repo" scope
+Other preferences, the button position and tutorial progress are saved in your browser's local
+storage for the ChatGPT site, so clearing that site's data resets them.
 
-**Notion:**
-- **"No pages found"**: Share a parent page with your integration
-- **"Invalid parent"**: Verify the page is shared with your integration
-- **"Request failed"**: Check your integration token is correct
-- **Large conversations**: May take a minute due to batching (100 blocks at a time)
+What leaves your browser:
 
----
+- Requests to ChatGPT's own conversation and file endpoints, the same ones the page makes, with
+  the session you are signed in with. The access token is read for each export and never
+  stored.
+- Image downloads from ChatGPT's image hosts, when embedding is on.
+- The content you send to GitHub or Notion, with your token, only to that service.
 
-## Technical Details
-- **Version:** 1.6.0
-- **Browsers:** Firefox 109+, Chrome 116+, Edge 116+
-- **Implementation:** Content script + background broker for API requests
-- **Dependencies:** None in the extension; `jsdom` is a dev dependency for the fixture tests only
-- **Build:** `node build.js [firefox|chrome] [--zip]`
-- **Tests:** `npm install` once, then `npm test` runs captured ChatGPT DOM and conversation-JSON fixtures through the export pipeline and diffs against `test/golden/`
-- **Font:** Matches ChatGPT's font stack automatically
-- **Code Detection:** Supports 20+ programming languages
-- **Metadata:** Thinking states, canvas artifacts, file attachments
-- **Integrations:** GitHub (Gists/Issues), Notion (Pages)
+Nothing is sent to Seveneves. The code never uses `eval`, `new Function` or remote code, all
+extension UI runs in shadow DOM, and conversation text is escaped before it is rendered. Details:
+[PRIVACY.md](PRIVACY.md).
 
----
+## Known limitations
 
-## Privacy
-- No analytics, no telemetry
-- Conversation data is read from the page and from ChatGPT's own same-origin conversation API (the same requests the page makes), using the session you are already signed in with
-- Network requests beyond chatgpt.com happen only for features you enable: GitHub, Notion, and embedding images from ChatGPT's image hosts
-- Clipboard access only when explicitly used
-- Exports stay on your device unless you choose to send them to GitHub or Notion
+- ChatGPT changes its page without notice. When its conversation data is unavailable and the
+  page layout is not recognized, the export finds no messages and says the layout may have
+  changed. ChatGPT's newer page layout is one such case: exports there work only through the
+  conversation data. Please [report it](https://github.com/sevenevesai/capsula/issues/new).
+- Shared links (`/share/...`) are read from the page only, without ChatGPT's conversation data.
+- Writing-box versions come from the conversation data only. Canvas documents and code
+  interpreter output are captured only from messages ChatGPT has rendered on the page.
+- Of an edited or regenerated conversation, only the branch on screen is exported.
+- Embedded images are data URIs, which some Markdown viewers do not display. JSON and the
+  GitHub and Notion exports keep image links, which expire.
 
----
+## How it works
 
-## File Structure
+```mermaid
+flowchart LR
+    tab["ChatGPT tab"] --> harvest
+    subgraph content["Content script"]
+        harvest["Harvester"] --> pipeline["Selection and filters"]
+        pipeline --> exporters["Exporters"]
+        images["Image embedder"] --> exporters
+    end
+    exporters --> local["Download or clipboard"]
+    exporters --> broker["Background broker"]
+    images -. fallback .-> broker
+    broker --> apis["GitHub, Notion and image hosts"]
+```
+
+- **Harvester** (`src/content/18-conversation-api.js`, `18-harvester.js`): reads the
+  conversation from ChatGPT's same-origin API, keeps rendered content (math, diagrams, canvas
+  markers) from the messages on the page, and falls back to scrolling the page.
+- **Pipeline and exporters** (`12-message-pipeline.js`, `16-export-manager.js`,
+  `17-dashboard-generator.js`): apply the selection and filters, then write Markdown, HTML, JSON
+  or the dashboard.
+- **Image embedder** (`16-image-embedder.js`): fetches images at export time and inlines them,
+  trying a direct fetch before asking the broker.
+- **UI** (`05` to `11`, `19-app.js`): the button, panel, timeline and settings, in shadow DOM.
+- **Background broker** (`background.js`): makes the GitHub, Notion and image requests the page
+  cannot, after checking the optional permission, and stores the tokens.
+
+The content script is the `src/content/*.js` modules joined in name order by `build.js`, with no
+bundler, minifier or transpiler. The harvest mechanism, merge rules and fixtures are in
+[docs/harvest-pipeline.md](docs/harvest-pipeline.md).
+
+## Documentation
+
+| Guide | Covers |
+|---|---|
+| [PRIVACY.md](PRIVACY.md) | What Capsula reads, stores and sends |
+| [CHANGELOG.md](CHANGELOG.md) | Changes in every release |
+
+| For contributors | Covers |
+|---|---|
+| [docs/harvest-pipeline.md](docs/harvest-pipeline.md) | How a conversation is collected, the fixtures, and known gaps |
+| [docs/RELEASING.md](docs/RELEASING.md) | Version bump, build, source zip, validation and store submission |
+
+## Build from source
+
+Requires [Node.js](https://nodejs.org/) 18 or later. The build uses only Node built-ins.
+
+```sh
+node build.js               # both browsers: dist/firefox/ and dist/chrome/
+node build.js firefox       # one browser
+node build.js chrome --zip  # also writes dist/capsula-<version>-chrome.zip
+```
+
+The build fails when the two manifests and `CFG.version` in `src/content/01-config.js` disagree.
+Load the result as in [Install from a GitHub release](#install), picking
+`dist/firefox/manifest.json` or the `dist/chrome/` folder.
+
+```sh
+npm install          # once: jsdom, used only by the tests
+npm test             # builds Firefox, runs every fixture, prints one "ok" line per fixture
+npm run test:update  # accept the current output as the new golden files
+```
+
+`npm test` runs captured ChatGPT pages and conversation JSON from `test/fixtures/` through the
+export pipeline and compares the Markdown with `test/golden/`. It exits 1 when any fixture
+differs and 2 when jsdom or the build is missing. The fixtures cover content extraction only;
+the panel, permission prompts and live ChatGPT behavior need a check in a real browser. There is
+no CI, so run the tests before sending a pull request.
+
+## Project structure
+
+```text
 capsula/
-├── src/content/          # Content script source modules (built into content.js)
-├── manifest-firefox.json # Firefox manifest
-├── manifest-chrome.json  # Chrome/Edge manifest
-├── background.js         # API request broker (shared)
-├── build.js              # Build/packaging script
-├── test/                 # Fixture regression suite (npm test)
-├── README.md             # This file
-├── PRIVACY.md            # Privacy policy
-├── LICENSE               # License file
-└── icons/                # Extension icons
-    ├── 16.png
-    ├── 32.png
-    ├── 48.png
-    ├── 96.png
-    └── 128.png
+├── src/content/           # content script modules, joined into content.js by build.js
+├── background.js          # background broker: API requests, tokens, permission checks
+├── manifest-firefox.json  # Firefox manifest (MV3)
+├── manifest-chrome.json   # Chrome and Edge manifest (MV3, service worker)
+├── build.js               # build and store-zip packaging, no dependencies
+├── test/                  # fixtures, golden Markdown, and the runner
+├── icons/                 # extension icons
+├── docs/                  # design notes, release runbook, store submission records
+└── index.html             # project web page, not part of the extension
+```
 
----
+## Contributing and support
 
-## Feedback & Support
-We welcome feedback, bug reports, and feature requests.
-Please reach out via [support@seveneves.ai](mailto:support@seveneves.ai) or visit [seveneves.ai/capsula](https://seveneves.ai/capsula).
-
-All development follows:
-- Firefox AMO and Chrome Web Store policies and review standards
-- Security best practices (no remote code, minimal permissions)
-- Strong focus on privacy and transparency
-
----
+Bug reports and feature requests go to [GitHub issues](https://github.com/sevenevesai/capsula/issues)
+or [support@seveneves.ai](mailto:support@seveneves.ai). When ChatGPT's page changes, a fixture
+that reproduces the problem helps most: save a snapshot into `test/fixtures/` with account data
+removed, as [docs/harvest-pipeline.md](docs/harvest-pipeline.md) describes. Report security
+issues privately to the same address.
 
 ## License
-MIT License. Copyright (c) 2025 Seveneves AI.
-See [LICENSE](./LICENSE) for details.
 
----
-
-## Author
-Developed by **Mark T. Short**  
-Website: [seveneves.ai](https://seveneves.ai/capsula)
-
----
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
-
-### v1.6.0 (Latest)
-- ChatGPT writing boxes export as titled blockquotes (Markdown/GitHub), collapsible cards (HTML and preview), Notion quotes, and `writing` blocks in JSON, including every ① ② version
-- The export format you pick in the panel is remembered across sessions
-- HTML exports use the full window width; the export panel grows to 1400px on wide screens
-- Fixed messages in HTML exports and the preview being held to about half the width
-
-### v1.5.0
-- Faster exports through ChatGPT's conversation JSON, with a DOM fallback
-- Better capture of available thinking summaries, timing labels, timestamps, and model information
-- Available images embedded in HTML/Markdown downloads and copies so saved images outlast expiring links
-- Conversation loading overlay with progress and message counts
-- Draggable export button with a saved position and a reset-to-corner setting
-- Fixed panels disappearing after reopening or harmless URL changes
-- Eight captured DOM/JSON fixtures to catch extraction regressions
-
-### v1.4.0
-- **Chrome/Edge support**: unified codebase now ships for Firefox, Chrome, and Edge
-- **Harvester rebuilt for the current ChatGPT DOM**: turn detection, code block language labels, inline formatting (bold, italic, links, inline code) preserved throughout
-- **Mermaid diagrams** export as rendered SVG; **KaTeX math** exports as LaTeX (`$…$` / `$$…$$`) in markdown and renders natively (MathML) in HTML exports and the preview
-- Virtualized (lazy-loaded) messages no longer dropped — export sweeps the full conversation first
-- Markdown fixes: safe code fences, pipe tables, nested lists, blank lines in code blocks preserved
-- Title detection no longer grabs headings from message content
-- Build script (`node build.js`) with version-consistency check and store zip packaging
-
-### v1.3.0
-- **Interactive Tutorial System**: Versioned, context-based help for first-time users
-- **Enhanced Timeline with Multi-Selection**: Ctrl+Click, Shift+Click, Ctrl+Drag for advanced message selection
-- **Interactive Message Toggles**: Checkbox on each message to include/exclude from export
-- **Smart Message Visibility**: Excluded messages shown greyed-out instead of hidden with auto-collapse
-- **Modern SVG Icon System**: Professional SVG icons replace all emojis for cleaner, more accessible interface
-- Bidirectional sync between timeline and preview toggles
-- Non-contiguous selections for complex filtering needs
-- Preserved message alignment (user right, assistant left)
-- Improved UX with multiple selection methods (no keyboard shortcuts required)
-- Better cross-platform compatibility and consistent styling
-
-### v1.2.0
-- **GitHub Integration:** Export conversations directly to GitHub Gists or Issues
-- **Notion Integration:** Create Notion pages with rich block formatting
-- Automatic content chunking for large conversations (Notion: 100 blocks/request)
-- File splitting for oversized conversations (GitHub: >1MB auto-split)
-- Privacy-first integration architecture (client-side only, local token storage)
-- Optional host permissions requested on first use
-- Progress tracking with visual feedback
-- Comprehensive error handling and retry logic with exponential backoff
-- Integration settings UI with connection testing
-
-### v1.1.1
-- Added Firefox Add-ons store compliance metadata
-- No functional changes
-
-### v1.1.0
-- **Dashboard export format** with conversation analytics
-- **Enhanced thinking detection** with multi-stage support and accurate time parsing
-- **Smart code language detection** (20+ languages)
-- **Canvas artifact detection** and metadata
-- **File attachment detection** and categorization
-- **Improved export formats** with thinking labels, canvas markers, and attachment info
-- Code cleanup and production optimizations
-
-### v1.0.0
-- Initial release
-- Multiple export formats (Markdown, HTML, JSON)
-- Interactive timeline with range selection
-- Content filtering (Assistant Only, Code, Tables, Lists)
-- Thinking state detection for o1 models
-- Security features with CSP headers
-
----
-
-> **Note:** Capsula is an independent tool and is not affiliated with OpenAI.
+[MIT](LICENSE), © 2025 Seveneves AI. Capsula is an independent project, not affiliated with
+OpenAI.
