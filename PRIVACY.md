@@ -1,5 +1,5 @@
 # Capsula — Privacy Policy
-_Last updated: 2026-09-15 • Describes Capsula v1.5.0_
+_Last updated: 2026-10-27 • Describes Capsula v1.6.0_
 
 **Capsula** is a Firefox and Chrome/Edge extension for saving and exporting AI conversations.
 It is designed with **data minimization** and **local-only processing** as guiding principles.
@@ -57,7 +57,7 @@ Interactions with the Seveneves website or support are covered by a separate web
 - Capsula requests only the permissions needed for its features:
   - **Host access:** limited to supported chat domains (never `<all_urls>`).
   - **Optional host access:** `api.github.com` and `api.notion.com` for integrations, and ChatGPT's image hosts (`*.oaiusercontent.com`, `*.blob.core.windows.net`) for embedding images. Each is requested when needed and can be revoked in your browser's extension settings.
-  - **Other permissions:** `storage` for local settings, tutorial state, and integration tokens; `clipboardWrite` for copying an export when requested.
+  - **Other permissions:** `storage` for integration settings and tokens; `clipboardWrite` for copying an export when requested. Other preferences and tutorial progress are saved in your browser's local storage for the ChatGPT site.
 - No broad or unrelated permissions are requested.
 
 ### Security measures
@@ -116,6 +116,7 @@ We will maintain a version history of privacy-relevant changes.
 Substantive updates will be highlighted in the extension listing and on our website.
 
 **Version history (privacy):**  
+- 2026-10-27 — Corrects where preferences and tutorial progress are stored (the ChatGPT site's local storage, not extension storage). No change in behavior.
 - v1.5.0 — Documents same-origin ChatGPT session/API access, image downloads, optional image-host permissions, and existing GitHub/Notion exports and token storage. No telemetry or Seveneves data collection added.
 - v1.0.0 — Initial release; local-only processing; no data collection.  
 

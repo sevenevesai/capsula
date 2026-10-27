@@ -12,7 +12,8 @@ The build fails if these disagree.
 
 ## 2. Update docs
 - `CHANGELOG.md`: rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`
-- `README.md`: version in Technical Details + new `### vX.Y.Z (Latest)` summary
+- `README.md`: only when a feature, permission, limit or command it describes changed; the
+  store badges carry the version and CHANGELOG.md the release summary
 - `docs/releases/RELEASE_NOTES_vX.Y.Z.md`: user-facing release notes
 - `docs/store-submission-X.Y.Z.md`: packages, reviewer notes, changed permission disclosures
 - `PRIVACY.md`: update when data access or network behavior changes
